@@ -9,7 +9,7 @@ import { parseFeed } from "./feedparser.mjs";
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const FETCH_TIMEOUT_MS = 20_000;
 const MAX_ITEMS_PER_SITE = 50;
-const MAX_ITEMS_TOTAL = 1000;
+const MAX_ITEMS_TOTAL = 1500;
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
