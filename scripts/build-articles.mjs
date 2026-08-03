@@ -20,8 +20,10 @@ const CONCURRENCY = 12;
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 // 抽出フォーマットのバージョン。上げると全記事が再抽出される
-// (v2: 文字コード自動判定 / v3: 関連記事リンクの収集を追加)
-const ART_VERSION = 3;
+// (v2: 文字コード自動判定 / v3: 関連記事リンク / v4: ツイート画像とスポンサー枠除去)
+const ART_VERSION = 4;
+// X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
+const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
 const hashUrl = (u) => createHash("sha1").update(u).digest("hex").slice(0, 16);
 
@@ -89,7 +91,10 @@ function colorStyle(node) {
   return m ? ` style="color:${esc(m[1])}"` : "";
 }
 
-function sanitize(node, base, budget) {
+// 「スポンサード リンク」等の広告見出しを含む小さなブロックを丸ごと除去する
+const SPONSOR_RE = /(スポンサ[ーァ]?ド?\s*リンク|Sponsored\s*Links?)/i;
+
+function sanitize(node, base, budget, depth = 0) {
   if (budget.used > MAX_HTML_CHARS) return "";
   if (node.nodeType === 3) {
     const text = esc(node.textContent);
@@ -100,6 +105,11 @@ function sanitize(node, base, budget) {
   const tag = node.tagName;
   const marker = `${node.getAttribute?.("class") ?? ""} ${node.getAttribute?.("id") ?? ""}`;
   if (BLOCK_TAGS.has(tag) || AD_RE.test(marker)) return "";
+  // ルート自身は除外しない (短い記事全体が消えるのを防ぐ)
+  if (depth > 0) {
+    const ownText = node.textContent ?? "";
+    if (ownText.length < 600 && SPONSOR_RE.test(ownText)) return "";
+  }
 
   if (tag === "IMG") {
     const src = absUrl(
@@ -114,7 +124,7 @@ function sanitize(node, base, budget) {
   if (tag === "HR") return "<hr>";
 
   let inner = "";
-  for (const child of node.childNodes) inner += sanitize(child, base, budget);
+  for (const child of node.childNodes) inner += sanitize(child, base, budget, depth + 1);
 
   if (tag === "A") {
     const href = absUrl(node.getAttribute("href"), base);
@@ -167,8 +177,78 @@ function collectRelated(document, url) {
   return out;
 }
 
-function extract(html, url) {
+// 埋め込みツイートの画像を取得して blockquote 内に <img> として差し込む。
+// widgets.js (スクリプト) は使えないため、X の公開 syndication API を利用する。
+function tweetToken(id) {
+  return ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, "");
+}
+
+async function enrichTweets(document) {
+  const quotes = [
+    ...document.querySelectorAll("blockquote.twitter-tweet, blockquote.twitter-video"),
+  ].slice(0, 6);
+  for (const bq of quotes) {
+    const match = [...bq.querySelectorAll("a[href]")]
+      .map((a) => a.getAttribute("href") ?? "")
+      .map((h) => h.match(/(?:twitter\.com|x\.com)\/[^/]+\/status(?:es)?\/(\d+)/))
+      .find(Boolean);
+    if (!match) continue;
+    const id = match[1];
+    try {
+      const res = await fetch(
+        `${TWEET_API}/tweet-result?id=${id}&lang=ja&token=${tweetToken(id)}`,
+        { headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) },
+      );
+      if (!res.ok) continue;
+      const tweet = await res.json();
+      const media = tweet.mediaDetails ?? tweet.photos ?? [];
+      for (const m of media.slice(0, 4)) {
+        const src = m.media_url_https ?? m.url;
+        if (!src || !/^https:\/\//.test(src)) continue;
+        const img = document.createElement("img");
+        img.setAttribute("src", src);
+        bq.appendChild(img);
+      }
+    } catch {}
+  }
+}
+
+// imgur 埋め込み (View post on imgur.com) を実画像の <img> に置き換える
+async function enrichImgur(document) {
+  const embeds = [...document.querySelectorAll("blockquote.imgur-embed-pub")].slice(0, 8);
+  for (const bq of embeds) {
+    let id = bq.getAttribute("data-id") ?? "";
+    if (!id) {
+      const a = bq.querySelector("a[href*='imgur.com']");
+      id = a?.getAttribute("href")?.match(/imgur\.com\/([\w/]+)/)?.[1] ?? "";
+    }
+    if (!id) continue;
+    try {
+      let src = null;
+      if (/^[A-Za-z0-9]+$/.test(id)) {
+        // 単一画像はURLを直接組み立てられる
+        src = `https://i.imgur.com/${id}.jpg`;
+      } else {
+        // アルバム等はページの og:image から取得
+        const page = await fetchText(`https://imgur.com/${id}`, 8000);
+        src =
+          page.match(/property="og:image"[^>]*content="([^"]+)"/)?.[1] ??
+          page.match(/content="([^"]+)"[^>]*property="og:image"/)?.[1];
+        if (src) src = src.replace(/&amp;/g, "&");
+      }
+      if (src && /^https?:\/\//.test(src)) {
+        const img = document.createElement("img");
+        img.setAttribute("src", src);
+        bq.appendChild(img);
+      }
+    } catch {}
+  }
+}
+
+async function extract(html, url) {
   const { document } = parseHTML(html);
+  await enrichTweets(document);
+  await enrichImgur(document);
   let root = null;
   for (const sel of BODY_SELECTORS) {
     const el = document.querySelector(sel);
@@ -231,7 +311,7 @@ await pool(pending, CONCURRENCY, async (item) => {
   const [, title, url] = item;
   try {
     const html = await fetchText(url, FETCH_TIMEOUT_MS);
-    const body = extract(html, url);
+    const body = await extract(html, url);
     if (!body) throw new Error("no content");
     const h = hashUrl(url);
     await writeFile(
