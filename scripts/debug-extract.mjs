@@ -75,4 +75,9 @@ if (!res) {
   console.log(`  html=${res.html.length} text=${text.length} img=${imgs} video=${videos} related=${res.related.length}`);
   console.log(`  head: ${text.slice(0, 200).replace(/\s+/g, " ")}`);
   console.log(`  tail: ${text.slice(-200).replace(/\s+/g, " ")}`);
+  if (res.html.length < 6000) {
+    console.log("--- full html ---");
+    console.log(res.html);
+    console.log("--- end html ---");
+  }
 }
