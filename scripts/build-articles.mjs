@@ -21,8 +21,9 @@ const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 // 抽出フォーマットのバージョン。上げると全記事が再抽出される
 // (v2: 文字コード自動判定 / v3: 関連記事リンク / v4: ツイート画像とスポンサー枠除去 /
-//  v5: 関連記事を最大30件・サムネイル付きに拡大、動画リンクをプレーヤー化)
-const ART_VERSION = 5;
+//  v5: 関連記事を最大30件・サムネイル付きに拡大、動画リンクをプレーヤー化 /
+//  v6: 画像直リンクをインライン画像に変換)
+const ART_VERSION = 6;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -42,7 +43,7 @@ async function pool(items, n, fn) {
 // ---- 本文抽出 ----
 
 // まとめブログでよく使われる本文コンテナ (優先順)
-const BODY_SELECTORS = [
+export const BODY_SELECTORS = [
   ".article-body-inner",
   ".article-body",
   "#article-body",
@@ -132,10 +133,17 @@ function sanitize(node, base, budget, depth = 0) {
     // 動画ファイルへの直リンクはその場で再生できるプレーヤーに変換する
     // (video.twimg.com などはリンクとして開くと403になるため)
     if (href && /\.(mp4|webm)([?#]|$)/i.test(href)) {
-      if (budget.videos.has(href)) return "";
-      budget.videos.add(href);
+      if (budget.media.has(href)) return "";
+      budget.media.add(href);
       budget.used += 200;
       return `<video controls playsinline preload="metadata" src="${esc(href)}"></video>`;
+    }
+    // 画像ファイルへの直リンク (i.imgur.com/xxx.jpg 等) はその場で画像表示する
+    if (href && /\.(jpe?g|png|gif|webp)([?#]|$)/i.test(href)) {
+      if (budget.media.has(href)) return "";
+      budget.media.add(href);
+      budget.used += 150;
+      return `<img src="${esc(href)}" loading="lazy" referrerpolicy="no-referrer">`;
     }
     return href
       ? `<a href="${esc(href)}" target="_blank" rel="noopener nofollow">${inner}</a>`
@@ -275,7 +283,7 @@ async function enrichImgur(document) {
   }
 }
 
-async function extract(html, url) {
+export async function extract(html, url) {
   const { document } = parseHTML(html);
   await enrichTweets(document);
   await enrichImgur(document);
@@ -306,7 +314,7 @@ async function extract(html, url) {
     } catch {}
   }
   if (roots.length === 0) return null;
-  const budget = { used: 0, videos: new Set() };
+  const budget = { used: 0, media: new Set() };
   const out = roots
     .map((root) => sanitize(root, url, budget))
     .join("")
@@ -322,55 +330,63 @@ async function extract(html, url) {
 
 // ---- メイン ----
 
-const dataPath = path.join(OUT, "data.json");
-const data = JSON.parse(await readFile(dataPath, "utf8"));
-await mkdir(ART_DIR, { recursive: true });
+import { pathToFileURL } from "node:url";
 
-// 1. 前回デプロイ済みの抽出結果を Pages から復元
-let restored = 0;
-if (PAGES_BASE) {
-  await pool(data.items, 16, async (item) => {
-    const h = hashUrl(item[2]);
+async function main() {
+  const dataPath = path.join(OUT, "data.json");
+  const data = JSON.parse(await readFile(dataPath, "utf8"));
+  await mkdir(ART_DIR, { recursive: true });
+
+  // 1. 前回デプロイ済みの抽出結果を Pages から復元
+  let restored = 0;
+  if (PAGES_BASE) {
+    await pool(data.items, 16, async (item) => {
+      const h = hashUrl(item[2]);
+      try {
+        const res = await fetch(`${PAGES_BASE}/articles/${h}.json`, {
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (!res.ok) return;
+        const text = await res.text();
+        // 旧フォーマット(文字化けの可能性あり)は捨てて再抽出させる
+        if (JSON.parse(text).v !== ART_VERSION) return;
+        await writeFile(path.join(ART_DIR, `${h}.json`), text);
+        item[4] = h;
+        restored++;
+      } catch {}
+    });
+  }
+
+  // 2. 未抽出の記事を新規に抽出
+  const pending = data.items.filter((item) => !item[4]).slice(0, MAX_NEW);
+  let extracted = 0;
+  let failed = 0;
+  await pool(pending, CONCURRENCY, async (item) => {
+    const [, title, url] = item;
     try {
-      const res = await fetch(`${PAGES_BASE}/articles/${h}.json`, {
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!res.ok) return;
-      const text = await res.text();
-      // 旧フォーマット(文字化けの可能性あり)は捨てて再抽出させる
-      if (JSON.parse(text).v !== ART_VERSION) return;
-      await writeFile(path.join(ART_DIR, `${h}.json`), text);
+      const html = await fetchText(url, FETCH_TIMEOUT_MS);
+      const body = await extract(html, url);
+      if (!body) throw new Error("no content");
+      const h = hashUrl(url);
+      await writeFile(
+        path.join(ART_DIR, `${h}.json`),
+        JSON.stringify({ v: ART_VERSION, title, url, html: body.html, related: body.related }),
+      );
       item[4] = h;
-      restored++;
-    } catch {}
+      extracted++;
+    } catch (err) {
+      console.error(`NG article: ${url} (${err.message})`);
+      failed++;
+    }
   });
+
+  await writeFile(dataPath, JSON.stringify(data));
+  const skipped = data.items.filter((item) => !item[4]).length;
+  console.log(
+    `articles: ${restored} restored, ${extracted} extracted, ${failed} failed, ${skipped} without reader`,
+  );
 }
 
-// 2. 未抽出の記事を新規に抽出
-const pending = data.items.filter((item) => !item[4]).slice(0, MAX_NEW);
-let extracted = 0;
-let failed = 0;
-await pool(pending, CONCURRENCY, async (item) => {
-  const [, title, url] = item;
-  try {
-    const html = await fetchText(url, FETCH_TIMEOUT_MS);
-    const body = await extract(html, url);
-    if (!body) throw new Error("no content");
-    const h = hashUrl(url);
-    await writeFile(
-      path.join(ART_DIR, `${h}.json`),
-      JSON.stringify({ v: ART_VERSION, title, url, html: body.html, related: body.related }),
-    );
-    item[4] = h;
-    extracted++;
-  } catch (err) {
-    console.error(`NG article: ${url} (${err.message})`);
-    failed++;
-  }
-});
-
-await writeFile(dataPath, JSON.stringify(data));
-const skipped = data.items.filter((item) => !item[4]).length;
-console.log(
-  `articles: ${restored} restored, ${extracted} extracted, ${failed} failed, ${skipped} without reader`,
-);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

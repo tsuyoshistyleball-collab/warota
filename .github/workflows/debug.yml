@@ -1,0 +1,23 @@
+name: debug
+
+# 特定の記事URLで本文抽出の挙動を調べるメンテナンス用ワークフロー
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "調査する記事URL"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  debug-extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save --no-package-lock --no-audit --no-fund linkedom @mozilla/readability
+      - run: node scripts/debug-extract.mjs "${{ github.event.inputs.url }}"
