@@ -130,7 +130,7 @@
     "category": "IT"
   },
   {
-    "name": "ライフハックちゃんねる弾",
+    "name": "ライフハックちゃんねる弐式",
     "url": "https://lifehack2ch.livedoor.biz/index.rdf",
     "category": "生活"
   },
@@ -158,5 +158,130 @@
     "name": "ガールズVIPまとめ",
     "url": "https://girlsvip-matome.com/index.rdf",
     "category": "芸能"
+  },
+  {
+    "name": "おーるじゃんる",
+    "url": "https://crx7601.com/index.rdf",
+    "category": "ニュース"
+  },
+  {
+    "name": "かるかんタイムズ",
+    "url": "https://karukantimes.com/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "カナ速",
+    "url": "https://kanasoku.info/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "ネギ速",
+    "url": "https://negisoku.com/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "流速VIP",
+    "url": "https://ryusoku.com/index.rdf",
+    "category": "VIP"
+  },
+  {
+    "name": "2chコピペ保存道場",
+    "url": "https://2chcopipe.com/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "コピペ情報局",
+    "url": "https://news.2chblog.jp/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "2ろぐちゃんねる",
+    "url": "https://2logch.com/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "カオスちゃんねる",
+    "url": "https://chaos2ch.com/index.rdf",
+    "category": "不思議"
+  },
+  {
+    "name": "うしみつ",
+    "url": "https://usi32.com/index.rdf",
+    "category": "不思議"
+  },
+  {
+    "name": "ニュース30over",
+    "url": "https://www.news30over.com/index.rdf",
+    "category": "ニュース"
+  },
+  {
+    "name": "FX2ちゃんねる",
+    "url": "https://fx2ch.net/index.rdf",
+    "category": "ニュース"
+  },
+  {
+    "name": "GOSSIP速報",
+    "url": "https://gossip1.net/index.rdf",
+    "category": "芸能"
+  },
+  {
+    "name": "Samurai GOAL",
+    "url": "https://samuraigoal.doorblog.jp/index.rdf",
+    "category": "サッカー"
+  },
+  {
+    "name": "カルチョまとめブログ",
+    "url": "https://calciomatome.net/index.rdf",
+    "category": "サッカー"
+  },
+  {
+    "name": "あにまんch",
+    "url": "https://animanch.com/index.rdf",
+    "category": "アニメ"
+  },
+  {
+    "name": "萌えオタニュース速報",
+    "url": "https://otanews.livedoor.biz/index.rdf",
+    "category": "アニメ"
+  },
+  {
+    "name": "えび通",
+    "url": "https://ebitsu.net/index.rdf",
+    "category": "ゲーム"
+  },
+  {
+    "name": "SWITCH速報",
+    "url": "https://switchsoku.com/index.rdf",
+    "category": "ゲーム"
+  },
+  {
+    "name": "ガジェット2ch",
+    "url": "https://gadget2ch.com/index.rdf",
+    "category": "IT"
+  },
+  {
+    "name": "デジタルニューススレッド",
+    "url": "https://digital-thread.com/index.rdf",
+    "category": "IT"
+  },
+  {
+    "name": "キチガイママまとめ保管庫",
+    "url": "https://kichimama.com/index.rdf",
+    "category": "生活"
+  },
+  {
+    "name": "鬼女まとめログ",
+    "url": "https://kijomatomelog.doorblog.jp/index.rdf",
+    "category": "生活"
+  },
+  {
+    "name": "登山ちゃんねる",
+    "url": "https://tozanchannel.blog.jp/index.rdf",
+    "category": "趣味"
+  },
+  {
+    "name": "エレファント速報",
+    "url": "https://elephant.2chblog.jp/index.rdf",
+    "category": "SS"
   }
 ]

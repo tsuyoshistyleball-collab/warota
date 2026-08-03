@@ -20,8 +20,8 @@ const CONCURRENCY = 12;
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 // 抽出フォーマットのバージョン。上げると全記事が再抽出される
-// (v2: EUC-JP等の文字コード自動判定を追加)
-const ART_VERSION = 2;
+// (v2: 文字コード自動判定 / v3: 関連記事リンクの収集を追加)
+const ART_VERSION = 3;
 
 const hashUrl = (u) => createHash("sha1").update(u).digest("hex").slice(0, 16);
 
@@ -131,6 +131,42 @@ function sanitize(node, base, budget) {
   return inner; // 未知のタグはタグだけ剥がして中身を残す
 }
 
+// ページ内から同一ブログの他記事へのリンク (関連記事・人気記事など) を集める
+function collectRelated(document, url) {
+  let self;
+  try {
+    self = new URL(url);
+  } catch {
+    return [];
+  }
+  const selfHost = self.hostname.replace(/^www\./, "");
+  const seen = new Set([self.origin + self.pathname]);
+  const out = [];
+  for (const a of document.querySelectorAll("a[href]")) {
+    if (out.length >= 10) break;
+    const text = (a.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (text.length < 10 || text.length > 150) continue;
+    let href;
+    try {
+      href = new URL(a.getAttribute("href"), url);
+    } catch {
+      continue;
+    }
+    if (!/^https?:$/.test(href.protocol)) continue;
+    if (href.hostname.replace(/^www\./, "") !== selfHost) continue;
+    // 記事URLらしいものだけ (アーカイブ/記事ID形式)
+    const target = href.pathname + href.search;
+    if (!/\/archives?\/\d+|\/archives?\/[\w-]+\.html|\/article\/\d+|\/\d{4,}\.html|[?&]p=\d+/.test(target)) {
+      continue;
+    }
+    const key = href.origin + href.pathname;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push([text.slice(0, 120), href.origin + href.pathname + href.search]);
+  }
+  return out;
+}
+
 function extract(html, url) {
   const { document } = parseHTML(html);
   let root = null;
@@ -157,7 +193,8 @@ function extract(html, url) {
   const garbled = (text.match(/�/g) ?? []).length;
   if (garbled > 5) return null;
   // タグを除いた実質テキストが少なすぎる場合は抽出失敗扱い
-  return text.length > 100 || out.includes("<img") ? out : null;
+  if (text.length <= 100 && !out.includes("<img")) return null;
+  return { html: out, related: collectRelated(document, url) };
 }
 
 // ---- メイン ----
@@ -199,7 +236,7 @@ await pool(pending, CONCURRENCY, async (item) => {
     const h = hashUrl(url);
     await writeFile(
       path.join(ART_DIR, `${h}.json`),
-      JSON.stringify({ v: ART_VERSION, title, url, html: body }),
+      JSON.stringify({ v: ART_VERSION, title, url, html: body.html, related: body.related }),
     );
     item[4] = h;
     extracted++;

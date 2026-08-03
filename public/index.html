@@ -41,12 +41,16 @@
 <div id="reader" hidden>
   <div class="reader-bar">
     <button id="reader-close" aria-label="戻る">←</button>
-    <a id="reader-open" target="_blank" rel="noopener noreferrer">元記事 ↗</a>
+    <div class="reader-actions">
+      <button id="reader-fav" aria-label="お気に入り">☆</button>
+      <a id="reader-open" target="_blank" rel="noopener noreferrer">元記事 ↗</a>
+    </div>
   </div>
   <div id="reader-scroll">
     <h2 id="reader-title"></h2>
     <p id="reader-meta"></p>
     <div id="reader-content"></div>
+    <div id="reader-related"></div>
   </div>
 </div>
 

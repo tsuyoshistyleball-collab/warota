@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "1.3.1";
+const APP_VERSION = "1.4.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -36,6 +36,20 @@ let ngWords = store.get("ngWords", []);
 let hiddenSites = new Set(store.get("hiddenSites", []));
 let hideRead = store.get("hideRead", false);
 let inAppReader = store.get("inAppReader", true);
+let favs = store.get("favs", []); // [title, url, ts, hash] 新しい順
+const favSet = new Set(favs.map((f) => f[1]));
+const FAV_CAT = "★お気に入り";
+
+function toggleFav(info) {
+  if (favSet.has(info.url)) {
+    favSet.delete(info.url);
+    favs = favs.filter((f) => f[1] !== info.url);
+  } else {
+    favSet.add(info.url);
+    favs.unshift([info.title, info.url, info.ts ?? null, info.hash ?? null]);
+  }
+  store.set("favs", favs);
+}
 
 // ---- 状態 ----
 let data = null; // { updated, sites:[{name,category}], items:[[siteIdx,title,url,ts]] }
@@ -83,7 +97,7 @@ function categories() {
 
 function renderTabs() {
   tabsEl.textContent = "";
-  for (const cat of categories()) {
+  for (const cat of [...categories(), FAV_CAT]) {
     const b = document.createElement("button");
     b.textContent = cat;
     if (cat === activeCategory) b.classList.add("active");
@@ -105,6 +119,14 @@ function matchesNg(title) {
 function filteredItems() {
   const q = searchQuery.toLowerCase();
   const out = [];
+  if (activeCategory === FAV_CAT) {
+    for (const [title, url, ts, hash] of favs) {
+      if (q && !title.toLowerCase().includes(q)) continue;
+      if (matchesNg(title)) continue;
+      out.push([null, title, url, ts, hash]);
+    }
+    return out;
+  }
   for (const item of data.items) {
     const [siteIdx, title, url] = item;
     const site = data.sites[siteIdx];
@@ -162,7 +184,23 @@ function render() {
         openReader({ title, url, ts, hash: articleHash });
       }
     });
-    li.appendChild(a);
+
+    const star = document.createElement("button");
+    star.className = "fav-btn" + (favSet.has(url) ? " on" : "");
+    star.textContent = favSet.has(url) ? "★" : "☆";
+    star.setAttribute("aria-label", "お気に入り");
+    star.onclick = () => {
+      toggleFav({ title, url, ts, hash: articleHash });
+      if (activeCategory === FAV_CAT) {
+        render();
+      } else {
+        const on = favSet.has(url);
+        star.textContent = on ? "★" : "☆";
+        star.classList.toggle("on", on);
+      }
+    };
+
+    li.append(a, star);
     frag.appendChild(li);
   }
   listEl.appendChild(frag);
@@ -174,6 +212,7 @@ function render() {
 }
 
 function markRead(url, li) {
+  if (li) li.classList.add("read");
   if (readSet.has(url)) return;
   readSet.add(url);
   readList.unshift(url);
@@ -181,22 +220,43 @@ function markRead(url, li) {
     for (const removed of readList.splice(READ_MAX)) readSet.delete(removed);
   }
   store.set("read", readList);
-  li.classList.add("read");
 }
 
 // ---- アプリ内リーダー ----
 const readerEl = $("reader");
 let readerOpen = false;
+let readerStack = []; // 関連記事から開いた履歴 (戻るで1つ前の記事へ)
 
-async function openReader(info) {
-  history.pushState({ reader: 1 }, "");
+async function urlHash(u) {
+  const digest = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(u));
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .slice(0, 16);
+}
+
+function updateReaderFav() {
+  const info = readerStack[readerStack.length - 1];
+  const btn = $("reader-fav");
+  const on = !!info && favSet.has(info.url);
+  btn.textContent = on ? "★" : "☆";
+  btn.classList.toggle("on", on);
+}
+
+async function openReader(info, replace = false) {
+  if (!replace) {
+    history.pushState({ reader: true }, "");
+    readerStack.push(info);
+  }
   readerOpen = true;
   readerEl.hidden = false;
   document.body.classList.add("noscroll");
   $("reader-title").textContent = info.title;
-  $("reader-meta").textContent = fmtDate(info.ts);
+  $("reader-meta").textContent = info.ts ? fmtDate(info.ts) : "";
   $("reader-open").href = info.url;
+  updateReaderFav();
   const box = $("reader-content");
+  $("reader-related").textContent = "";
   box.innerHTML = '<p class="reader-loading">読み込み中…</p>';
   $("reader-scroll").scrollTop = 0;
   try {
@@ -204,23 +264,77 @@ async function openReader(info) {
     if (!res.ok) throw new Error();
     const article = await res.json();
     box.innerHTML = article.html;
+    renderRelated(article.related);
   } catch {
     box.innerHTML =
       '<p class="reader-loading">本文を取得できませんでした。右上の「元記事」から開いてください。</p>';
   }
 }
 
+// 関連記事リンク。アプリ内で読めるものはリーダーで、それ以外はブラウザで開く
+function renderRelated(list) {
+  const wrap = $("reader-related");
+  wrap.textContent = "";
+  if (!Array.isArray(list) || list.length === 0) return;
+  const h3 = document.createElement("h3");
+  h3.textContent = "関連記事";
+  const ul = document.createElement("ul");
+  wrap.append(h3, ul);
+  for (const [title, url] of list) {
+    if (matchesNg(title)) continue;
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = title;
+    a.addEventListener("click", () => markRead(url, null));
+    li.appendChild(a);
+    ul.appendChild(li);
+  }
+  for (const a of ul.querySelectorAll("a")) {
+    (async () => {
+      const h = await urlHash(a.href);
+      try {
+        const res = await fetch(`./articles/${h}.json`, { method: "HEAD" });
+        if (!res.ok) return;
+      } catch {
+        return;
+      }
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        openReader({ title: a.textContent, url: a.href, ts: null, hash: h });
+      });
+    })();
+  }
+}
+
 function closeReader() {
   readerEl.hidden = true;
   readerOpen = false;
+  readerStack = [];
   document.body.classList.remove("noscroll");
   $("reader-content").innerHTML = "";
+  $("reader-related").textContent = "";
 }
 
 window.addEventListener("popstate", () => {
-  if (readerOpen) closeReader();
+  if (!readerOpen) return;
+  readerStack.pop();
+  if (readerStack.length > 0) {
+    openReader(readerStack[readerStack.length - 1], true);
+  } else {
+    closeReader();
+  }
 });
 $("reader-close").onclick = () => history.back();
+$("reader-fav").onclick = () => {
+  const info = readerStack[readerStack.length - 1];
+  if (!info) return;
+  toggleFav(info);
+  updateReaderFav();
+  if (data && activeCategory === FAV_CAT) render();
+};
 
 // ---- ヘッダー操作 ----
 $("btn-refresh").onclick = () => loadData(true);

@@ -121,14 +121,31 @@ main { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
 }
 
 #list { list-style: none; margin: 0; padding: 0; }
-#list li { border-bottom: 1px solid var(--line); }
+#list li {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: stretch;
+}
 #list a {
+  flex: 1;
+  min-width: 0;
   display: block;
-  padding: 11px 14px;
+  padding: 11px 0 11px 14px;
   text-decoration: none;
   color: inherit;
   -webkit-tap-highlight-color: transparent;
 }
+.fav-btn {
+  flex: none;
+  width: 46px;
+  border: 0;
+  background: none;
+  font-size: 19px;
+  color: var(--fg-dim);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.fav-btn.on { color: var(--accent); }
 #list a:active { background: var(--bg2); }
 .item-title {
   font-size: 15px;
@@ -217,6 +234,16 @@ body.noscroll { overflow: hidden; }
   padding: 6px 12px;
   cursor: pointer;
 }
+.reader-actions { display: flex; align-items: center; }
+#reader-fav {
+  border: 0;
+  background: none;
+  font-size: 21px;
+  color: var(--fg-dim);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+#reader-fav.on { color: var(--accent); }
 #reader-open {
   font-size: 13px;
   font-weight: 600;
@@ -261,6 +288,25 @@ body.noscroll { overflow: hidden; }
 }
 #reader-content table { max-width: 100%; overflow-x: auto; display: block; }
 .reader-loading { color: var(--fg-dim); text-align: center; padding: 30px 0; }
+#reader-related { margin-top: 28px; }
+#reader-related h3 {
+  font-size: 13px;
+  color: var(--fg-dim);
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  margin: 0 0 2px;
+}
+#reader-related ul { list-style: none; margin: 0; padding: 0; }
+#reader-related li { border-bottom: 1px solid var(--line); }
+#reader-related a {
+  display: block;
+  padding: 11px 2px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--fg);
+  text-decoration: none;
+}
 
 /* settings modal */
 .modal {
