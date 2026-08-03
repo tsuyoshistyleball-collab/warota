@@ -1,0 +1,21 @@
+[
+  { "name": "ハムスター速報", "url": "https://hamusoku.com/index.rdf", "category": "総合" },
+  { "name": "痛いニュース", "url": "https://blog.livedoor.jp/dqnplus/index.rdf", "category": "ニュース" },
+  { "name": "暇人速報", "url": "https://himasoku.com/index.rdf", "category": "総合" },
+  { "name": "キニ速", "url": "https://blog.livedoor.jp/kinisoku/index.rdf", "category": "総合" },
+  { "name": "VIPPERな俺", "url": "https://blog.livedoor.jp/news23vip/index.rdf", "category": "VIP" },
+  { "name": "ニュー速クオリティ", "url": "https://news4vip.livedoor.biz/index.rdf", "category": "VIP" },
+  { "name": "アルファルファモザイク", "url": "https://alfalfalfa.com/index.rdf", "category": "総合" },
+  { "name": "ゴールデンタイムズ", "url": "https://blog.livedoor.jp/goldennews/index.rdf", "category": "総合" },
+  { "name": "まとめたニュース", "url": "https://matometanews.com/index.rdf", "category": "ニュース" },
+  { "name": "哲学ニュースnwk", "url": "https://blog.livedoor.jp/nwknews/index.rdf", "category": "不思議" },
+  { "name": "不思議.net", "url": "https://world-fusigi.net/index.rdf", "category": "不思議" },
+  { "name": "カラパイア", "url": "https://karapaia.com/index.rdf", "category": "海外" },
+  { "name": "らばQ", "url": "https://labaq.com/index.rdf", "category": "海外" },
+  { "name": "オレ的ゲーム速報@刃", "url": "https://jin115.com/index.rdf", "category": "ゲーム" },
+  { "name": "はちま起稿", "url": "https://blog.esuteru.com/index.rdf", "category": "ゲーム" },
+  { "name": "IT速報", "url": "https://blog.livedoor.jp/itsoku/index.rdf", "category": "IT" },
+  { "name": "ライフハックちゃんねる弾", "url": "https://lifehack2ch.livedoor.biz/index.rdf", "category": "生活" },
+  { "name": "お料理速報", "url": "https://oryouri.2chblog.jp/index.rdf", "category": "生活" },
+  { "name": "なんJスタジアム", "url": "https://blog.livedoor.jp/nanjstu/index.rdf", "category": "なんJ" }
+]

@@ -1,0 +1,12 @@
+{
+  "name": "warota-antenna",
+  "version": "1.0.0",
+  "private": true,
+  "description": "5ちゃんねるまとめサイトの自分用アンテナ (PWA)",
+  "type": "module",
+  "scripts": {
+    "fetch": "node scripts/fetch.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "serve": "npx --yes serve public"
+  }
+}

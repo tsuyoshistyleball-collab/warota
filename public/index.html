@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16161f" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>わろたんてな</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<div id="ptr" aria-hidden="true"><span></span></div>
+
+<header id="header">
+  <div class="bar">
+    <h1>わろたんてな</h1>
+    <div class="bar-actions">
+      <button id="btn-search" aria-label="検索" title="検索">🔍</button>
+      <button id="btn-refresh" aria-label="更新" title="更新">↻</button>
+      <button id="btn-settings" aria-label="設定" title="設定">⚙</button>
+    </div>
+  </div>
+  <div id="searchbar" hidden>
+    <input id="search" type="search" placeholder="タイトルを検索" autocomplete="off">
+  </div>
+  <nav id="tabs" aria-label="カテゴリ"></nav>
+</header>
+
+<main>
+  <p id="status" hidden></p>
+  <ul id="list"></ul>
+  <button id="more" hidden>もっと見る</button>
+  <p id="updated"></p>
+</main>
+
+<div id="settings-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>設定</h2>
+      <button id="btn-close-settings" aria-label="閉じる">✕</button>
+    </div>
+    <section>
+      <h3>NGワード</h3>
+      <p class="hint">カンマか改行区切り。含まれる記事を非表示にします。</p>
+      <textarea id="ng-words" rows="3" placeholder="例: 広告, PR"></textarea>
+    </section>
+    <section>
+      <h3>表示するサイト</h3>
+      <div id="site-toggles"></div>
+    </section>
+    <section>
+      <h3>その他</h3>
+      <label class="row"><input type="checkbox" id="opt-hide-read"> 既読の記事を隠す</label>
+      <button id="btn-clear-read" class="secondary">既読履歴をリセット</button>
+    </section>
+  </div>
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
