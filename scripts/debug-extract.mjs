@@ -39,6 +39,31 @@ for (const el of document.querySelectorAll("div, article, section, td")) {
   console.log(`  ${label}: textLen=${len} head="${head}"`);
 }
 
+const label = (el) => {
+  const cls = (el.getAttribute?.("class") ?? "").trim().replace(/\s+/g, ".");
+  return `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${cls ? `.${cls}` : ""}`;
+};
+
+console.log("\n=== 続きコンテナ(.more_body/#more)の周辺構造");
+const more = document.querySelector(".more_body, #more, .article-body-more");
+if (more) {
+  let anc = more;
+  const chain = [];
+  while (anc && chain.length < 5) {
+    chain.push(label(anc));
+    anc = anc.parentElement;
+  }
+  console.log(`  ancestor chain: ${chain.join(" < ")}`);
+  const parent = more.parentElement;
+  if (parent) {
+    for (const c of parent.children) {
+      console.log(`  sibling: ${label(c)} textLen=${c.textContent.trim().length}`);
+    }
+  }
+} else {
+  console.log("  なし");
+}
+
 console.log("\n=== extract() の結果");
 const res = await extract(html, url);
 if (!res) {
