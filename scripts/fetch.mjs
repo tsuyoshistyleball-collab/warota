@@ -5,27 +5,15 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { parseFeed } from "./feedparser.mjs";
+import { fetchText } from "./fetchtext.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const FETCH_TIMEOUT_MS = 20_000;
 const MAX_ITEMS_PER_SITE = 50;
 const MAX_ITEMS_TOTAL = 1500;
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
-
 async function fetchFeed(url) {
-  const res = await fetch(url, {
-    headers: {
-      "user-agent": UA,
-      accept: "application/rss+xml, application/xml, text/xml, */*",
-      "accept-language": "ja,en;q=0.8",
-    },
-    redirect: "follow",
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
+  return fetchText(url, FETCH_TIMEOUT_MS, "application/rss+xml, application/xml, text/xml, */*");
 }
 
 function errDetail(err) {

@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
+import { fetchText } from "./fetchtext.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const OUT = path.join(ROOT, "public");
@@ -18,8 +19,9 @@ const MAX_NEW = 300; // 1回の実行で新規抽出する記事数の上限
 const CONCURRENCY = 12;
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+// 抽出フォーマットのバージョン。上げると全記事が再抽出される
+// (v2: EUC-JP等の文字コード自動判定を追加)
+const ART_VERSION = 2;
 
 const hashUrl = (u) => createHash("sha1").update(u).digest("hex").slice(0, 16);
 
@@ -150,19 +152,12 @@ function extract(html, url) {
   if (!root) return null;
   const budget = { used: 0 };
   const out = sanitize(root, url, budget).trim();
+  const text = out.replace(/<[^>]*>/g, "").trim();
+  // 文字化け (置換文字が多い) は抽出失敗として扱う
+  const garbled = (text.match(/�/g) ?? []).length;
+  if (garbled > 5) return null;
   // タグを除いた実質テキストが少なすぎる場合は抽出失敗扱い
-  const textLen = out.replace(/<[^>]*>/g, "").trim().length;
-  return textLen > 100 || out.includes("<img") ? out : null;
-}
-
-async function fetchPage(url) {
-  const res = await fetch(url, {
-    headers: { "user-agent": UA, "accept-language": "ja,en;q=0.8" },
-    redirect: "follow",
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
+  return text.length > 100 || out.includes("<img") ? out : null;
 }
 
 // ---- メイン ----
@@ -182,7 +177,8 @@ if (PAGES_BASE) {
       });
       if (!res.ok) return;
       const text = await res.text();
-      JSON.parse(text);
+      // 旧フォーマット(文字化けの可能性あり)は捨てて再抽出させる
+      if (JSON.parse(text).v !== ART_VERSION) return;
       await writeFile(path.join(ART_DIR, `${h}.json`), text);
       item[4] = h;
       restored++;
@@ -197,11 +193,14 @@ let failed = 0;
 await pool(pending, CONCURRENCY, async (item) => {
   const [, title, url] = item;
   try {
-    const html = await fetchPage(url);
+    const html = await fetchText(url, FETCH_TIMEOUT_MS);
     const body = extract(html, url);
     if (!body) throw new Error("no content");
     const h = hashUrl(url);
-    await writeFile(path.join(ART_DIR, `${h}.json`), JSON.stringify({ title, url, html: body }));
+    await writeFile(
+      path.join(ART_DIR, `${h}.json`),
+      JSON.stringify({ v: ART_VERSION, title, url, html: body }),
+    );
     item[4] = h;
     extracted++;
   } catch (err) {
