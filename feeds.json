@@ -1,41 +1,167 @@
 [
-  { "name": "ハムスター速報", "url": "https://hamusoku.com/index.rdf", "category": "総合" },
-  { "name": "暇人速報", "url": "https://himasoku.com/index.rdf", "category": "総合" },
-  { "name": "キニ速", "url": "https://blog.livedoor.jp/kinisoku/index.rdf", "category": "総合" },
-  { "name": "アルファルファモザイク", "url": "https://alfalfalfa.com/index.rdf", "category": "総合" },
-  { "name": "ゴールデンタイムズ", "url": "https://blog.livedoor.jp/goldennews/index.rdf", "category": "総合" },
-  { "name": "ガハろぐNews", "url": "https://gahalog.2chblog.jp/index.rdf", "category": "総合" },
-  { "name": "ラビット速報", "url": "https://rabitsokuhou.2chblog.jp/index.rdf", "category": "総合" },
-  { "name": "VIPワイドガイド", "url": "https://news4wide.livedoor.biz/index.rdf", "category": "総合" },
-  { "name": "1000mg", "url": "https://www.1000mg.jp/index.rdf", "category": "総合" },
-  { "name": "VIPPERな俺", "url": "https://blog.livedoor.jp/news23vip/index.rdf", "category": "VIP" },
-  { "name": "ニュー速クオリティ", "url": "https://news4vip.livedoor.biz/index.rdf", "category": "VIP" },
-  { "name": "ぶる速-VIP", "url": "https://burusoku-vip.com/index.rdf", "category": "VIP" },
-  { "name": "VIPPER速報", "url": "https://vippers.jp/index.rdf", "category": "VIP" },
-  { "name": "痛いニュース", "url": "https://blog.livedoor.jp/dqnplus/index.rdf", "category": "ニュース" },
-  { "name": "まとめたニュース", "url": "https://matometanews.com/index.rdf", "category": "ニュース" },
-  { "name": "常識的に考えた", "url": "https://blog.livedoor.jp/jyoushiki43/index.rdf", "category": "ニュース" },
-  { "name": "市況かぶ全力2階建", "url": "https://kabumatome.doorblog.jp/index.rdf", "category": "ニュース" },
-  { "name": "哲学ニュースnwk", "url": "https://blog.livedoor.jp/nwknews/index.rdf", "category": "不思議" },
-  { "name": "不思議.net", "url": "https://world-fusigi.net/index.rdf", "category": "不思議" },
-  { "name": "おうまがタイムズ", "url": "https://blog.livedoor.jp/oumagatimes/index.rdf", "category": "不思議" },
-  { "name": "カラパイア", "url": "https://karapaia.com/index.rdf", "category": "海外" },
-  { "name": "らばQ", "url": "https://labaq.com/index.rdf", "category": "海外" },
-  { "name": "パンドラの憂鬱", "url": "http://kaigainohannoublog.blog55.fc2.com/?xml", "category": "海外" },
-  { "name": "オレ的ゲーム速報@刃", "url": "https://jin115.com/index.rdf", "category": "ゲーム" },
-  { "name": "はちま起稿", "url": "https://blog.esuteru.com/index.rdf", "category": "ゲーム" },
-  { "name": "やらおん", "url": "https://yaraon-blog.com/feed", "category": "アニメ" },
-  { "name": "オタコム", "url": "https://otakomu.jp/index.rdf", "category": "アニメ" },
-  { "name": "アニゲー速報", "url": "https://anige-sokuhouvip.com/index.rdf", "category": "アニメ" },
-  { "name": "IT速報", "url": "https://blog.livedoor.jp/itsoku/index.rdf", "category": "IT" },
-  { "name": "ライフハックちゃんねる弾", "url": "https://lifehack2ch.livedoor.biz/index.rdf", "category": "生活" },
-  { "name": "お料理速報", "url": "https://oryouri.2chblog.jp/index.rdf", "category": "生活" },
-  { "name": "鬼女速", "url": "https://kijosoku.com/index.rdf", "category": "生活" },
-  { "name": "働くモノニュース", "url": "http://workingnews.blog117.fc2.com/?xml", "category": "生活" },
-  { "name": "なんJスタジアム", "url": "https://blog.livedoor.jp/nanjstu/index.rdf", "category": "野球" },
-  { "name": "なんJ PRIDE", "url": "https://blog.livedoor.jp/rock1963roll/index.rdf", "category": "野球" },
-  { "name": "日刊やきう速報", "url": "https://blog.livedoor.jp/nikkanyakiu/index.rdf", "category": "野球" },
-  { "name": "ドメサカブログ", "url": "https://blog.domesoccer.jp/index.rdf", "category": "サッカー" },
-  { "name": "ジャックログ", "url": "https://jacklog.doorblog.jp/index.rdf", "category": "芸能" },
-  { "name": "ガールズVIPまとめ", "url": "https://girlsvip-matome.com/index.rdf", "category": "芸能" }
+  {
+    "name": "ハムスター速報",
+    "url": "https://hamusoku.com/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "暇人速報",
+    "url": "https://himasoku.com/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "キニ速",
+    "url": "https://blog.livedoor.jp/kinisoku/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "アルファルファモザイク",
+    "url": "https://alfalfalfa.com/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "ゴールデンタイムズ",
+    "url": "https://blog.livedoor.jp/goldennews/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "ガハろぐNews",
+    "url": "https://gahalog.2chblog.jp/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "ラビット速報",
+    "url": "https://rabitsokuhou.2chblog.jp/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "VIPワイドガイド",
+    "url": "https://news4wide.livedoor.biz/index.rdf",
+    "category": "総合"
+  },
+  {
+    "name": "VIPPERな俺",
+    "url": "https://blog.livedoor.jp/news23vip/index.rdf",
+    "category": "VIP"
+  },
+  {
+    "name": "ニュー速クオリティ",
+    "url": "https://news4vip.livedoor.biz/index.rdf",
+    "category": "VIP"
+  },
+  {
+    "name": "ぶる速-VIP",
+    "url": "https://burusoku-vip.com/index.rdf",
+    "category": "VIP"
+  },
+  {
+    "name": "VIPPER速報",
+    "url": "https://vippers.jp/index.rdf",
+    "category": "VIP"
+  },
+  {
+    "name": "痛いニュース",
+    "url": "https://blog.livedoor.jp/dqnplus/index.rdf",
+    "category": "ニュース"
+  },
+  {
+    "name": "まとめたニュース",
+    "url": "https://matometanews.com/index.rdf",
+    "category": "ニュース"
+  },
+  {
+    "name": "常識的に考えた",
+    "url": "https://blog.livedoor.jp/jyoushiki43/index.rdf",
+    "category": "ニュース"
+  },
+  {
+    "name": "市況かぶ全力2階建",
+    "url": "https://kabumatome.doorblog.jp/index.rdf",
+    "category": "ニュース"
+  },
+  {
+    "name": "哲学ニュースnwk",
+    "url": "https://blog.livedoor.jp/nwknews/index.rdf",
+    "category": "不思議"
+  },
+  {
+    "name": "不思議.net",
+    "url": "https://world-fusigi.net/index.rdf",
+    "category": "不思議"
+  },
+  {
+    "name": "カラパイア",
+    "url": "https://karapaia.com/index.rdf",
+    "category": "海外"
+  },
+  {
+    "name": "らばQ",
+    "url": "https://labaq.com/index.rdf",
+    "category": "海外"
+  },
+  {
+    "name": "パンドラの憂鬱",
+    "url": "http://kaigainohannoublog.blog55.fc2.com/?xml",
+    "category": "海外"
+  },
+  {
+    "name": "オレ的ゲーム速報@刃",
+    "url": "https://jin115.com/index.rdf",
+    "category": "ゲーム"
+  },
+  {
+    "name": "はちま起稿",
+    "url": "https://blog.esuteru.com/index.rdf",
+    "category": "ゲーム"
+  },
+  {
+    "name": "やらおん",
+    "url": "https://yaraon-blog.com/feed",
+    "category": "アニメ"
+  },
+  {
+    "name": "オタコム",
+    "url": "https://otakomu.jp/index.rdf",
+    "category": "アニメ"
+  },
+  {
+    "name": "IT速報",
+    "url": "https://blog.livedoor.jp/itsoku/index.rdf",
+    "category": "IT"
+  },
+  {
+    "name": "ライフハックちゃんねる弾",
+    "url": "https://lifehack2ch.livedoor.biz/index.rdf",
+    "category": "生活"
+  },
+  {
+    "name": "お料理速報",
+    "url": "https://oryouri.2chblog.jp/index.rdf",
+    "category": "生活"
+  },
+  {
+    "name": "働くモノニュース",
+    "url": "http://workingnews.blog117.fc2.com/?xml",
+    "category": "生活"
+  },
+  {
+    "name": "なんJスタジアム",
+    "url": "https://blog.livedoor.jp/nanjstu/index.rdf",
+    "category": "野球"
+  },
+  {
+    "name": "なんJ PRIDE",
+    "url": "https://blog.livedoor.jp/rock1963roll/index.rdf",
+    "category": "野球"
+  },
+  {
+    "name": "ガールズVIPまとめ",
+    "url": "https://girlsvip-matome.com/index.rdf",
+    "category": "芸能"
+  },
+  {
+    "name": "無題のドキュメント",
+    "url": "https://blog.livedoor.jp/mudainodqnment/index.rdf",
+    "category": "総合"
+  }
 ]
