@@ -38,6 +38,18 @@
   <p id="updated"></p>
 </main>
 
+<div id="reader" hidden>
+  <div class="reader-bar">
+    <button id="reader-close" aria-label="戻る">←</button>
+    <a id="reader-open" target="_blank" rel="noopener noreferrer">元記事 ↗</a>
+  </div>
+  <div id="reader-scroll">
+    <h2 id="reader-title"></h2>
+    <p id="reader-meta"></p>
+    <div id="reader-content"></div>
+  </div>
+</div>
+
 <div id="settings-modal" class="modal" hidden>
   <div class="modal-box">
     <div class="modal-head">
@@ -55,6 +67,7 @@
     </section>
     <section>
       <h3>その他</h3>
+      <label class="row"><input type="checkbox" id="opt-reader"> 記事をアプリ内で開く(広告カット)</label>
       <label class="row"><input type="checkbox" id="opt-hide-read"> 既読の記事を隠す</label>
       <button id="btn-clear-read" class="secondary">既読履歴をリセット</button>
     </section>

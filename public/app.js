@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -35,6 +35,7 @@ const readSet = new Set(readList);
 let ngWords = store.get("ngWords", []);
 let hiddenSites = new Set(store.get("hiddenSites", []));
 let hideRead = store.get("hideRead", false);
+let inAppReader = store.get("inAppReader", true);
 
 // ---- 状態 ----
 let data = null; // { updated, sites:[{name,category}], items:[[siteIdx,title,url,ts]] }
@@ -134,7 +135,7 @@ function render() {
   }
 
   const frag = document.createDocumentFragment();
-  for (const [, title, url, ts] of items.slice(0, renderLimit)) {
+  for (const [, title, url, ts, articleHash] of items.slice(0, renderLimit)) {
     const li = document.createElement("li");
     if (readSet.has(url)) li.classList.add("read");
 
@@ -154,7 +155,13 @@ function render() {
     meta.append(time);
 
     a.append(t, meta);
-    a.addEventListener("click", () => markRead(url, li));
+    a.addEventListener("click", (e) => {
+      markRead(url, li);
+      if (inAppReader && articleHash) {
+        e.preventDefault();
+        openReader({ title, url, ts, hash: articleHash });
+      }
+    });
     li.appendChild(a);
     frag.appendChild(li);
   }
@@ -176,6 +183,44 @@ function markRead(url, li) {
   store.set("read", readList);
   li.classList.add("read");
 }
+
+// ---- アプリ内リーダー ----
+const readerEl = $("reader");
+let readerOpen = false;
+
+async function openReader(info) {
+  history.pushState({ reader: 1 }, "");
+  readerOpen = true;
+  readerEl.hidden = false;
+  document.body.classList.add("noscroll");
+  $("reader-title").textContent = info.title;
+  $("reader-meta").textContent = fmtDate(info.ts);
+  $("reader-open").href = info.url;
+  const box = $("reader-content");
+  box.innerHTML = '<p class="reader-loading">読み込み中…</p>';
+  $("reader-scroll").scrollTop = 0;
+  try {
+    const res = await fetch(`./articles/${info.hash}.json`);
+    if (!res.ok) throw new Error();
+    const article = await res.json();
+    box.innerHTML = article.html;
+  } catch {
+    box.innerHTML =
+      '<p class="reader-loading">本文を取得できませんでした。右上の「元記事」から開いてください。</p>';
+  }
+}
+
+function closeReader() {
+  readerEl.hidden = true;
+  readerOpen = false;
+  document.body.classList.remove("noscroll");
+  $("reader-content").innerHTML = "";
+}
+
+window.addEventListener("popstate", () => {
+  if (readerOpen) closeReader();
+});
+$("reader-close").onclick = () => history.back();
 
 // ---- ヘッダー操作 ----
 $("btn-refresh").onclick = () => loadData(true);
@@ -208,6 +253,7 @@ const modal = $("settings-modal");
 $("btn-settings").onclick = () => {
   $("ng-words").value = ngWords.join(", ");
   $("opt-hide-read").checked = hideRead;
+  $("opt-reader").checked = inAppReader;
   renderSiteToggles();
   modal.hidden = false;
 };
@@ -215,8 +261,10 @@ $("btn-settings").onclick = () => {
 function closeSettings() {
   ngWords = $("ng-words").value.split(/[,、\n]/).map((w) => w.trim()).filter(Boolean);
   hideRead = $("opt-hide-read").checked;
+  inAppReader = $("opt-reader").checked;
   store.set("ngWords", ngWords);
   store.set("hideRead", hideRead);
+  store.set("inAppReader", inAppReader);
   store.set("hiddenSites", [...hiddenSites]);
   modal.hidden = true;
   renderLimit = PAGE_SIZE;
@@ -266,7 +314,7 @@ $("btn-clear-read").onclick = () => {
   let pulled = false;
 
   window.addEventListener("touchstart", (e) => {
-    if (window.scrollY === 0 && modal.hidden) {
+    if (window.scrollY === 0 && modal.hidden && !readerOpen) {
       startY = e.touches[0].clientY;
       pulled = false;
     } else {
