@@ -22,8 +22,8 @@ const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 // 抽出フォーマットのバージョン。上げると全記事が再抽出される
 // (v2: 文字コード自動判定 / v3: 関連記事リンク / v4: ツイート画像とスポンサー枠除去 /
 //  v5: 関連記事を最大30件・サムネイル付きに拡大、動画リンクをプレーヤー化 /
-//  v6: 画像直リンクをインライン画像に変換 / v7: 不思議.net系の本文セレクタ追加)
-const ART_VERSION = 7;
+//  v6: 画像直リンクをインライン画像に変換 / v7-8: 不思議.net系の本文セレクタ調整)
+const ART_VERSION = 8;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -55,7 +55,7 @@ export const BODY_SELECTORS = [
   "#article_body",
   ".article_body",
   ".main-article-body",
-  ".content_body", // 不思議.net 等
+  ".article_box_upper", // 不思議.net 等 (本文前半、続きは .more_body)
 ];
 
 const BLOCK_TAGS = new Set([
