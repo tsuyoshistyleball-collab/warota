@@ -1,4 +1,4 @@
-const CACHE = "warota-v3";
+const CACHE = "warota-v4";
 const SHELL = [
   "./",
   "./index.html",
@@ -24,37 +24,28 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+// 常にネットワーク優先で最新版を取得し、オフライン時だけキャッシュを使う。
+// cache:"no-cache" でHTTPキャッシュも再検証させ、更新の反映漏れを防ぐ。
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
 
-  // data.json はネットワーク優先 (オフライン時はキャッシュ)
-  if (url.pathname.endsWith("/data.json")) {
-    e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put("./data.json", copy));
-          return res;
-        })
-        .catch(() => caches.match("./data.json"))
-    );
-    return;
-  }
-
-  // シェルはキャッシュ優先 + 裏で更新
+  const isData = url.pathname.endsWith("/data.json");
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const fresh = fetch(e.request)
-        .then((res) => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(e.request, copy));
-          }
-          return res;
+    fetch(e.request, { cache: isData ? "no-store" : "no-cache" })
+      .then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          const key = isData ? "./data.json" : e.request;
+          caches.open(CACHE).then((c) => c.put(key, copy));
+        }
+        return res;
+      })
+      .catch(() =>
+        caches.match(isData ? "./data.json" : e.request).then((cached) => {
+          if (cached) return cached;
+          throw new Error("offline");
         })
-        .catch(() => cached);
-      return cached || fresh;
-    })
+      )
   );
 });

@@ -52,6 +52,12 @@ body {
   letter-spacing: .02em;
 }
 .bar h1::before { content: "📡 "; }
+.bar h1 span {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-dim);
+  vertical-align: 2px;
+}
 .bar-actions { display: flex; gap: 4px; }
 .bar-actions button {
   border: 0;

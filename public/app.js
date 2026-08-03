@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -162,8 +162,8 @@ function render() {
 
   moreBtn.hidden = items.length <= renderLimit;
   updatedEl.textContent = data
-    ? `最終取得: ${new Date(data.updated).toLocaleString("ja-JP")} ・ v${APP_VERSION}`
-    : `v${APP_VERSION}`;
+    ? `最終取得: ${new Date(data.updated).toLocaleString("ja-JP")}`
+    : "";
 }
 
 function markRead(url, li) {
@@ -310,10 +310,31 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-// ---- Service Worker ----
+// ---- Service Worker (自動更新付き) ----
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  navigator.serviceWorker
+    .register("./sw.js")
+    .then((reg) => {
+      // 起動時・フォアグラウンド復帰時・定期的に新バージョンを確認する
+      reg.update().catch(() => {});
+      setInterval(() => reg.update().catch(() => {}), AUTO_REFRESH_MS);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reg.update().catch(() => {});
+      });
+    })
+    .catch(() => {});
+
+  // 新しいService Workerが有効化されたら自動リロードして即時反映
+  // (初回インストール時のcontrollerchangeではリロードしない)
+  let hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController) {
+      hadController = true;
+      return;
+    }
+    location.reload();
+  });
 }
 
-updatedEl.textContent = `v${APP_VERSION}`;
+$("app-ver").textContent = `v${APP_VERSION}`;
 loadData();
