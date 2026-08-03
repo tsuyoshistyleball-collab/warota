@@ -5,7 +5,7 @@ on:
     # 30分ごとに記事を再取得して再デプロイ (UTC)
     - cron: "*/30 * * * *"
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
   workflow_dispatch:
 
 permissions:
@@ -31,6 +31,9 @@ jobs:
       - name: Fetch feeds
         run: node scripts/fetch.mjs
       - uses: actions/configure-pages@v5
+        with:
+          # Pages 未設定でもワークフローが自動で有効化する
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
