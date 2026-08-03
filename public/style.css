@@ -7,17 +7,7 @@
   --accent: #ff8906;
   --accent-fg: #ffffff;
   --read: #9a9aa5;
-  color-scheme: light dark;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16161f;
-    --bg2: #20202c;
-    --fg: #ececf2;
-    --fg-dim: #8f8f9e;
-    --line: #2c2c3a;
-    --read: #63636f;
-  }
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
