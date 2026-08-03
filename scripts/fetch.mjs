@@ -12,11 +12,15 @@ const MAX_ITEMS_PER_SITE = 50;
 const MAX_ITEMS_TOTAL = 1000;
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const UA =
-  "Mozilla/5.0 (compatible; warota-antenna/1.0; personal feed reader)";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 async function fetchFeed(url) {
   const res = await fetch(url, {
-    headers: { "user-agent": UA, accept: "application/rss+xml, application/xml, text/xml, */*" },
+    headers: {
+      "user-agent": UA,
+      accept: "application/rss+xml, application/xml, text/xml, */*",
+      "accept-language": "ja,en;q=0.8",
+    },
     redirect: "follow",
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
@@ -24,12 +28,38 @@ async function fetchFeed(url) {
   return res.text();
 }
 
+function errDetail(err) {
+  const parts = [err?.message];
+  let cause = err?.cause;
+  while (cause) {
+    parts.push(cause.code ?? cause.message);
+    cause = cause.cause;
+  }
+  return parts.filter(Boolean).join(" / ");
+}
+
+// https で失敗したら http(またはその逆)でも試す
+async function fetchFeedWithFallback(url) {
+  try {
+    return await fetchFeed(url);
+  } catch (err) {
+    const alt = url.startsWith("https://")
+      ? url.replace(/^https:/, "http:")
+      : url.replace(/^http:/, "https:");
+    try {
+      return await fetchFeed(alt);
+    } catch {
+      throw new Error(errDetail(err));
+    }
+  }
+}
+
 const feeds = JSON.parse(await readFile(path.join(ROOT, "feeds.json"), "utf8"));
 const now = Date.now();
 
 const results = await Promise.allSettled(
   feeds.map(async (feed) => {
-    const xml = await fetchFeed(feed.url);
+    const xml = await fetchFeedWithFallback(feed.url);
     const items = parseFeed(xml);
     if (items.length === 0) throw new Error("no items parsed");
     return items;
