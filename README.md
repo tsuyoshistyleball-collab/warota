@@ -54,8 +54,10 @@
 ```sh
 npm run fetch   # feeds.json から public/data.json を生成
 npm run serve   # http://localhost:3000 でプレビュー
-npm run icons   # アイコンPNGを再生成(デザイン変更時のみ)
 ```
+
+アイコンの元画像は [`assets/icon-source.png`](assets/icon-source.png)。差し替える場合はここから
+512 / 192 / 180px に縮小して `public/icon-512.png` / `icon-192.png` / `apple-touch-icon.png` を上書きします。
 
 ## 仕組み
 
