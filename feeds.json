@@ -175,11 +175,6 @@
     "category": "総合"
   },
   {
-    "name": "ネギ速",
-    "url": "https://negisoku.com/index.rdf",
-    "category": "総合"
-  },
-  {
     "name": "流速VIP",
     "url": "https://ryusoku.com/index.rdf",
     "category": "VIP"
@@ -215,29 +210,9 @@
     "category": "ニュース"
   },
   {
-    "name": "FX2ちゃんねる",
-    "url": "https://fx2ch.net/index.rdf",
-    "category": "ニュース"
-  },
-  {
-    "name": "GOSSIP速報",
-    "url": "https://gossip1.net/index.rdf",
-    "category": "芸能"
-  },
-  {
     "name": "Samurai GOAL",
     "url": "https://samuraigoal.doorblog.jp/index.rdf",
     "category": "サッカー"
-  },
-  {
-    "name": "カルチョまとめブログ",
-    "url": "https://calciomatome.net/index.rdf",
-    "category": "サッカー"
-  },
-  {
-    "name": "あにまんch",
-    "url": "https://animanch.com/index.rdf",
-    "category": "アニメ"
   },
   {
     "name": "萌えオタニュース速報",
@@ -247,11 +222,6 @@
   {
     "name": "えび通",
     "url": "https://ebitsu.net/index.rdf",
-    "category": "ゲーム"
-  },
-  {
-    "name": "SWITCH速報",
-    "url": "https://switchsoku.com/index.rdf",
     "category": "ゲーム"
   },
   {
@@ -267,11 +237,6 @@
   {
     "name": "キチガイママまとめ保管庫",
     "url": "https://kichimama.com/index.rdf",
-    "category": "生活"
-  },
-  {
-    "name": "鬼女まとめログ",
-    "url": "https://kijomatomelog.doorblog.jp/index.rdf",
     "category": "生活"
   },
   {
