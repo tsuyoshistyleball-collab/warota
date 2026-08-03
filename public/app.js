@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "1.4.1";
+const APP_VERSION = "1.5.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -280,14 +280,24 @@ function renderRelated(list) {
   h3.textContent = "関連記事";
   const ul = document.createElement("ul");
   wrap.append(h3, ul);
-  for (const [title, url] of list) {
+  for (const [title, url, thumb] of list) {
     if (matchesNg(title)) continue;
     const li = document.createElement("li");
     const a = document.createElement("a");
     a.href = url;
     a.target = "_blank";
     a.rel = "noopener noreferrer";
-    a.textContent = title;
+    if (thumb) {
+      const img = document.createElement("img");
+      img.className = "rel-thumb";
+      img.src = thumb;
+      img.loading = "lazy";
+      img.referrerPolicy = "no-referrer";
+      a.appendChild(img);
+    }
+    const span = document.createElement("span");
+    span.textContent = title;
+    a.appendChild(span);
     a.addEventListener("click", () => markRead(url, null));
     li.appendChild(a);
     ul.appendChild(li);
@@ -303,7 +313,7 @@ function renderRelated(list) {
       }
       a.addEventListener("click", (e) => {
         e.preventDefault();
-        openReader({ title: a.textContent, url: a.href, ts: null, hash: h });
+        openReader({ title: a.querySelector("span")?.textContent ?? a.textContent, url: a.href, ts: null, hash: h });
       });
     })();
   }

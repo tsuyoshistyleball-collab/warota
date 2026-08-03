@@ -20,8 +20,9 @@ const CONCURRENCY = 12;
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 // 抽出フォーマットのバージョン。上げると全記事が再抽出される
-// (v2: 文字コード自動判定 / v3: 関連記事リンク / v4: ツイート画像とスポンサー枠除去)
-const ART_VERSION = 4;
+// (v2: 文字コード自動判定 / v3: 関連記事リンク / v4: ツイート画像とスポンサー枠除去 /
+//  v5: 関連記事を最大30件・サムネイル付きに拡大、動画リンクをプレーヤー化)
+const ART_VERSION = 5;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -128,6 +129,14 @@ function sanitize(node, base, budget, depth = 0) {
 
   if (tag === "A") {
     const href = absUrl(node.getAttribute("href"), base);
+    // 動画ファイルへの直リンクはその場で再生できるプレーヤーに変換する
+    // (video.twimg.com などはリンクとして開くと403になるため)
+    if (href && /\.(mp4|webm)([?#]|$)/i.test(href)) {
+      if (budget.videos.has(href)) return "";
+      budget.videos.add(href);
+      budget.used += 200;
+      return `<video controls playsinline preload="metadata" src="${esc(href)}"></video>`;
+    }
     return href
       ? `<a href="${esc(href)}" target="_blank" rel="noopener nofollow">${inner}</a>`
       : inner;
@@ -141,7 +150,8 @@ function sanitize(node, base, budget, depth = 0) {
   return inner; // 未知のタグはタグだけ剥がして中身を残す
 }
 
-// ページ内から同一ブログの他記事へのリンク (関連記事・人気記事など) を集める
+// ページ内から同一ブログの他記事へのリンク (関連記事・人気記事など) を
+// サムネイル付きで集める。返り値: [title, url, thumb?] の配列 (最大30件)
 function collectRelated(document, url) {
   let self;
   try {
@@ -150,12 +160,16 @@ function collectRelated(document, url) {
     return [];
   }
   const selfHost = self.hostname.replace(/^www\./, "");
-  const seen = new Set([self.origin + self.pathname]);
-  const out = [];
+  const isArticleLink = (href) =>
+    /\/archives?\/\d+|\/archives?\/[\w-]+\.html|\/article\/\d+|\/\d{4,}\.html|[?&]p=\d+/.test(
+      href.pathname + href.search,
+    );
+
+  // サムネイルだけのリンクとタイトルだけのリンクが分かれていることが多いので、
+  // 先に記事URL→サムネイル画像の対応を作っておく
+  const thumbs = new Map();
+  const anchors = [];
   for (const a of document.querySelectorAll("a[href]")) {
-    if (out.length >= 10) break;
-    const text = (a.textContent ?? "").replace(/\s+/g, " ").trim();
-    if (text.length < 10 || text.length > 150) continue;
     let href;
     try {
       href = new URL(a.getAttribute("href"), url);
@@ -164,15 +178,31 @@ function collectRelated(document, url) {
     }
     if (!/^https?:$/.test(href.protocol)) continue;
     if (href.hostname.replace(/^www\./, "") !== selfHost) continue;
-    // 記事URLらしいものだけ (アーカイブ/記事ID形式)
-    const target = href.pathname + href.search;
-    if (!/\/archives?\/\d+|\/archives?\/[\w-]+\.html|\/article\/\d+|\/\d{4,}\.html|[?&]p=\d+/.test(target)) {
-      continue;
-    }
+    if (!isArticleLink(href)) continue;
     const key = href.origin + href.pathname;
+    const img = a.querySelector("img");
+    if (img && !thumbs.has(key)) {
+      const thumb = absUrl(
+        img.getAttribute("data-src") || img.getAttribute("data-original") || img.getAttribute("src"),
+        url,
+      );
+      if (thumb) thumbs.set(key, thumb);
+    }
+    anchors.push([a, href, key]);
+  }
+
+  const seen = new Set([self.origin + self.pathname]);
+  const out = [];
+  for (const [a, href, key] of anchors) {
+    if (out.length >= 30) break;
+    const text = (a.textContent ?? "").replace(/\s+/g, " ").trim();
+    if (text.length < 10 || text.length > 150) continue;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push([text.slice(0, 120), href.origin + href.pathname + href.search]);
+    const entry = [text.slice(0, 120), href.origin + href.pathname + href.search];
+    const thumb = thumbs.get(key);
+    if (thumb) entry.push(thumb);
+    out.push(entry);
   }
   return out;
 }
@@ -249,31 +279,44 @@ async function extract(html, url) {
   const { document } = parseHTML(html);
   await enrichTweets(document);
   await enrichImgur(document);
-  let root = null;
+  // 本文コンテナは複数に分かれていることがある (最初のレスと「続き」が別コンテナ等)
+  // ため、マッチした要素はすべて連結する
+  let roots = [];
   for (const sel of BODY_SELECTORS) {
-    const el = document.querySelector(sel);
-    if (el && el.textContent.trim().length > 100) {
-      root = el;
+    const els = [...document.querySelectorAll(sel)];
+    const totalLen = els.reduce((n, el) => n + el.textContent.trim().length, 0);
+    if (els.length > 0 && totalLen > 100) {
+      roots = els;
       break;
     }
   }
-  if (!root) {
+  if (roots.length > 0) {
+    // 「続きを読む」以降が別コンテナのブログに対応
+    for (const sel of ["#more", "#article-more", ".article-body-more", ".article-more", ".entry-more"]) {
+      for (const el of document.querySelectorAll(sel)) {
+        if (!roots.some((r) => r.contains(el) || el.contains(r))) roots.push(el);
+      }
+    }
+  } else {
     try {
       const article = new Readability(document, { charThreshold: 100 }).parse();
       if (article?.content) {
-        root = parseHTML(`<div>${article.content}</div>`).document.querySelector("div");
+        roots = [parseHTML(`<div>${article.content}</div>`).document.querySelector("div")];
       }
     } catch {}
   }
-  if (!root) return null;
-  const budget = { used: 0 };
-  const out = sanitize(root, url, budget).trim();
+  if (roots.length === 0) return null;
+  const budget = { used: 0, videos: new Set() };
+  const out = roots
+    .map((root) => sanitize(root, url, budget))
+    .join("")
+    .trim();
   const text = out.replace(/<[^>]*>/g, "").trim();
   // 文字化け (置換文字が多い) は抽出失敗として扱う
   const garbled = (text.match(/�/g) ?? []).length;
   if (garbled > 5) return null;
-  // タグを除いた実質テキストが少なすぎる場合は抽出失敗扱い
-  if (text.length <= 100 && !out.includes("<img")) return null;
+  // タグを除いた実質テキストが少なすぎる場合は抽出失敗扱い (画像・動画があればOK)
+  if (text.length <= 100 && !out.includes("<img") && !out.includes("<video")) return null;
   return { html: out, related: collectRelated(document, url) };
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "warota-antenna",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "description": "5ちゃんねるまとめサイトの自分用アンテナ (PWA)",
   "type": "module",
