@@ -36,6 +36,15 @@ jobs:
         run: node scripts/build-articles.mjs
         env:
           PAGES_BASE: https://tsuyoshistyleball-collab.github.io/warota
+      # debug-urls.txt にURLを書いておくと抽出診断がログに出る (メンテ用)
+      - name: Debug extract
+        if: ${{ hashFiles('debug-urls.txt') != '' }}
+        run: |
+          while IFS= read -r u; do
+            [ -z "$u" ] && continue
+            echo "================ DEBUG: $u"
+            node scripts/debug-extract.mjs "$u" || true
+          done < debug-urls.txt
       - uses: actions/configure-pages@v5
         with:
           # Pages 未設定でもワークフローが自動で有効化する
