@@ -142,11 +142,6 @@ li.read .item-title { color: var(--read); font-weight: 400; }
   align-items: center;
   gap: 6px;
 }
-.site-chip {
-  color: var(--accent);
-  font-weight: 700;
-}
-
 #more {
   display: block;
   width: calc(100% - 28px);

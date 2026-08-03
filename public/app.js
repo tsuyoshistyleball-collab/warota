@@ -1,5 +1,7 @@
 "use strict";
 
+const APP_VERSION = "1.1.0";
+
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
 const tabsEl = $("tabs");
@@ -116,17 +118,10 @@ function filteredItems() {
   return out;
 }
 
-function relTime(ts) {
-  const diff = Date.now() - ts;
-  const min = Math.floor(diff / 60000);
-  if (min < 1) return "たった今";
-  if (min < 60) return `${min}分前`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}時間前`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}日前`;
-  const date = new Date(ts);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+function fmtDate(ts) {
+  const d = new Date(ts);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function render() {
@@ -139,7 +134,7 @@ function render() {
   }
 
   const frag = document.createDocumentFragment();
-  for (const [siteIdx, title, url, ts] of items.slice(0, renderLimit)) {
+  for (const [, title, url, ts] of items.slice(0, renderLimit)) {
     const li = document.createElement("li");
     if (readSet.has(url)) li.classList.add("read");
 
@@ -154,12 +149,9 @@ function render() {
 
     const meta = document.createElement("div");
     meta.className = "item-meta";
-    const chip = document.createElement("span");
-    chip.className = "site-chip";
-    chip.textContent = data.sites[siteIdx].name;
     const time = document.createElement("span");
-    time.textContent = relTime(ts);
-    meta.append(chip, time);
+    time.textContent = fmtDate(ts);
+    meta.append(time);
 
     a.append(t, meta);
     a.addEventListener("click", () => markRead(url, li));
@@ -170,8 +162,8 @@ function render() {
 
   moreBtn.hidden = items.length <= renderLimit;
   updatedEl.textContent = data
-    ? `最終取得: ${new Date(data.updated).toLocaleString("ja-JP")}`
-    : "";
+    ? `最終取得: ${new Date(data.updated).toLocaleString("ja-JP")} ・ v${APP_VERSION}`
+    : `v${APP_VERSION}`;
 }
 
 function markRead(url, li) {
@@ -323,4 +315,5 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
 
+updatedEl.textContent = `v${APP_VERSION}`;
 loadData();
