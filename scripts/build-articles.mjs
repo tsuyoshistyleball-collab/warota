@@ -22,8 +22,9 @@ const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 // 抽出フォーマットのバージョン。上げると全記事が再抽出される
 // (v2: 文字コード自動判定 / v3: 関連記事リンク / v4: ツイート画像とスポンサー枠除去 /
 //  v5: 関連記事を最大30件・サムネイル付きに拡大、動画リンクをプレーヤー化 /
-//  v6: 画像直リンクをインライン画像に変換 / v7-9: 不思議.net系の本文セレクタ調整)
-const ART_VERSION = 9;
+//  v6: 画像直リンクをインライン画像に変換 / v7-9: 不思議.net系の本文セレクタ調整 /
+//  v10: ツイート動画をプレーヤーとして埋め込み)
+const ART_VERSION = 10;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -137,7 +138,9 @@ function sanitize(node, base, budget, depth = 0) {
       if (budget.media.has(href)) return "";
       budget.media.add(href);
       budget.used += 200;
-      return `<video controls playsinline preload="metadata" src="${esc(href)}"></video>`;
+      const poster = absUrl(node.getAttribute("data-poster"), base);
+      const posterAttr = poster ? ` poster="${esc(poster)}"` : "";
+      return `<video controls playsinline preload="metadata"${posterAttr} src="${esc(href)}"></video>`;
     }
     // 画像ファイルへの直リンク (i.imgur.com/xxx.jpg 等) はその場で画像表示する
     if (href && /\.(jpe?g|png|gif|webp)([?#]|$)/i.test(href)) {
@@ -242,10 +245,23 @@ async function enrichTweets(document) {
       const tweet = await res.json();
       const media = tweet.mediaDetails ?? tweet.photos ?? [];
       for (const m of media.slice(0, 4)) {
-        const src = m.media_url_https ?? m.url;
-        if (!src || !/^https:\/\//.test(src)) continue;
+        const thumb = m.media_url_https ?? m.url;
+        // 動画・GIFは最高画質のmp4を選び、リンクとして挿入する
+        // (sanitizeのmp4リンク→<video>変換でプレーヤーになる)
+        const variants = (m.video_info?.variants ?? [])
+          .filter((v) => v.content_type === "video/mp4" && /^https:\/\//.test(v.url ?? ""));
+        if ((m.type === "video" || m.type === "animated_gif") && variants.length > 0) {
+          variants.sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
+          const a = document.createElement("a");
+          a.setAttribute("href", variants[0].url);
+          if (thumb && /^https:\/\//.test(thumb)) a.setAttribute("data-poster", thumb);
+          a.textContent = "動画";
+          bq.appendChild(a);
+          continue;
+        }
+        if (!thumb || !/^https:\/\//.test(thumb)) continue;
         const img = document.createElement("img");
-        img.setAttribute("src", src);
+        img.setAttribute("src", thumb);
         bq.appendChild(img);
       }
     } catch {}
