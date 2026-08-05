@@ -283,6 +283,21 @@ body.noscroll { overflow: hidden; }
   border-radius: 0 8px 8px 0;
 }
 #reader-content table { max-width: 100%; overflow-x: auto; display: block; }
+/* まとめブログ定番のレス構造を元サイト風に表示 */
+#reader-content .t_h,
+#reader-content .res_h,
+#reader-content .name {
+  margin-top: 20px;
+  font-size: 13.5px;
+  color: #5c8022;
+  font-weight: 600;
+}
+#reader-content .t_b,
+#reader-content .res_b {
+  margin: 4px 0 4px 8px;
+  font-size: 16px;
+  line-height: 1.7;
+}
 .reader-loading { color: var(--fg-dim); text-align: center; padding: 30px 0; }
 #reader-related { margin-top: 28px; }
 #reader-related h3 {

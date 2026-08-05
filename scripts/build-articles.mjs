@@ -23,8 +23,8 @@ const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 // (v2: 文字コード自動判定 / v3: 関連記事リンク / v4: ツイート画像とスポンサー枠除去 /
 //  v5: 関連記事を最大30件・サムネイル付きに拡大、動画リンクをプレーヤー化 /
 //  v6: 画像直リンクをインライン画像に変換 / v7-9: 不思議.net系の本文セレクタ調整 /
-//  v10: ツイート動画をプレーヤーとして埋め込み)
-const ART_VERSION = 10;
+//  v10: ツイート動画をプレーヤーとして埋め込み / v11: 元サイトの装飾・クラスを保持)
+const ART_VERSION = 11;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -88,11 +88,45 @@ function absUrl(u, base) {
   }
 }
 
-// 文字色だけ style 属性から引き継ぐ (まとめ記事の色付きレスを保持)
-function colorStyle(node) {
+// 元サイトの見た目を保つため、安全な装飾系プロパティだけ style 属性を引き継ぐ
+const STYLE_ALLOW = new Set([
+  "color", "background-color", "background", "font-size", "font-weight",
+  "font-style", "text-decoration", "text-align", "line-height",
+  "border", "border-left", "border-radius", "padding", "margin",
+]);
+
+function styleAttr(node) {
   const style = node.getAttribute?.("style") ?? "";
-  const m = style.match(/(?:^|;)\s*color\s*:\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|[a-zA-Z]+)/);
-  return m ? ` style="color:${esc(m[1])}"` : "";
+  if (!style) return "";
+  const out = [];
+  for (const decl of style.split(";")) {
+    const i = decl.indexOf(":");
+    if (i < 0) continue;
+    const prop = decl.slice(0, i).trim().toLowerCase();
+    const val = decl.slice(i + 1).trim();
+    if (!STYLE_ALLOW.has(prop)) continue;
+    // 画像URLやスクリプト的な値は除外
+    if (/url\s*\(|expression|javascript|import/i.test(val)) continue;
+    if (val.length > 80) continue;
+    if (prop === "font-size") {
+      const m = val.match(/^(\d+(?:\.\d+)?)px$/);
+      if (m && (+m[1] < 10 || +m[1] > 36)) continue;
+    }
+    out.push(`${prop}:${val}`);
+  }
+  return out.length > 0 ? ` style="${esc(out.join(";"))}"` : "";
+}
+
+// レス構造などのクラス名を残し、リーダー側CSSで元サイト風の見た目を再現できるようにする
+function classAttr(node) {
+  const cls = (node.getAttribute?.("class") ?? "").trim();
+  if (!cls) return "";
+  const safe = cls
+    .split(/\s+/)
+    .filter((c) => /^[\w-]+$/.test(c))
+    .slice(0, 4)
+    .join(" ");
+  return safe ? ` class="${esc(safe)}"` : "";
 }
 
 // 「スポンサード リンク」等の広告見出しを含む小さなブロックを丸ごと除去する
@@ -155,10 +189,14 @@ function sanitize(node, base, budget, depth = 0) {
   }
   if (KEEP_TAGS.has(tag)) {
     const t = tag.toLowerCase();
-    return `<${t}${colorStyle(node)}>${inner}</${t}>`;
+    return `<${t}${classAttr(node)}${styleAttr(node)}>${inner}</${t}>`;
   }
-  if (WRAP_AS_DIV.has(tag)) return inner.trim() ? `<div${colorStyle(node)}>${inner}</div>` : "";
-  if (tag === "SPAN") return inner.trim() ? `<span${colorStyle(node)}>${inner}</span>` : "";
+  if (WRAP_AS_DIV.has(tag)) {
+    return inner.trim() ? `<div${classAttr(node)}${styleAttr(node)}>${inner}</div>` : "";
+  }
+  if (tag === "SPAN") {
+    return inner.trim() ? `<span${classAttr(node)}${styleAttr(node)}>${inner}</span>` : "";
+  }
   return inner; // 未知のタグはタグだけ剥がして中身を残す
 }
 
