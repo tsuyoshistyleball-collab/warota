@@ -23,8 +23,9 @@ const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 // (v2: 文字コード自動判定 / v3: 関連記事リンク / v4: ツイート画像とスポンサー枠除去 /
 //  v5: 関連記事を最大30件・サムネイル付きに拡大、動画リンクをプレーヤー化 /
 //  v6: 画像直リンクをインライン画像に変換 / v7-9: 不思議.net系の本文セレクタ調整 /
-//  v10: ツイート動画をプレーヤーとして埋め込み / v11: 元サイトの装飾・クラスを保持)
-const ART_VERSION = 11;
+//  v10: ツイート動画をプレーヤーとして埋め込み / v11: 元サイトの装飾・クラスを保持 /
+//  v12: 痛いニュース対応 + 短すぎる抽出結果のReadabilityフォールバック)
+const ART_VERSION = 12;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -48,6 +49,7 @@ export const BODY_SELECTORS = [
   ".article-body-inner",
   ".article-body",
   "#article-body",
+  ".blogbody", // 痛いニュース等の旧livedoorテンプレート (レス群を含む)
   ".entry-content",
   ".ently_text",
   ".entry_body",
@@ -360,27 +362,41 @@ export async function extract(html, url) {
         if (!roots.some((r) => r.contains(el) || el.contains(r))) roots.push(el);
       }
     }
-  } else {
+  }
+
+  // 関連記事はReadabilityがDOMを壊す前に集めておく
+  const related = collectRelated(document, url);
+
+  const sanitizeRoots = (rootsArr) => {
+    const budget = { used: 0, media: new Set() };
+    return rootsArr
+      .map((root) => sanitize(root, url, budget))
+      .join("")
+      .trim();
+  };
+  const textOf = (s) => s.replace(/<[^>]*>/g, "").trim();
+
+  let out = roots.length > 0 ? sanitizeRoots(roots) : "";
+  // セレクタで取れた本文が短すぎる場合は、Readabilityの本文推定と比較して
+  // 明確に長い方を採用する (未知のテンプレートでレス群を取りこぼす対策)
+  if (textOf(out).length < 600) {
     try {
       const article = new Readability(document, { charThreshold: 100 }).parse();
       if (article?.content) {
-        roots = [parseHTML(`<div>${article.content}</div>`).document.querySelector("div")];
+        const altRoot = parseHTML(`<div>${article.content}</div>`).document.querySelector("div");
+        const altOut = sanitizeRoots([altRoot]);
+        if (textOf(altOut).length > textOf(out).length * 1.3) out = altOut;
       }
     } catch {}
   }
-  if (roots.length === 0) return null;
-  const budget = { used: 0, media: new Set() };
-  const out = roots
-    .map((root) => sanitize(root, url, budget))
-    .join("")
-    .trim();
-  const text = out.replace(/<[^>]*>/g, "").trim();
+  if (!out) return null;
+  const text = textOf(out);
   // 文字化け (置換文字が多い) は抽出失敗として扱う
   const garbled = (text.match(/�/g) ?? []).length;
   if (garbled > 5) return null;
   // タグを除いた実質テキストが少なすぎる場合は抽出失敗扱い (画像・動画があればOK)
   if (text.length <= 100 && !out.includes("<img") && !out.includes("<video")) return null;
-  return { html: out, related: collectRelated(document, url) };
+  return { html: out, related };
 }
 
 // ---- メイン ----
