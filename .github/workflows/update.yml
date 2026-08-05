@@ -2,8 +2,9 @@ name: update
 
 on:
   schedule:
-    # 30分ごとに記事を再取得して再デプロイ (UTC)
-    - cron: "*/30 * * * *"
+    # 30分ごとに記事を再取得して再デプロイ (UTC)。
+    # 毎時0分/30分はGitHub側の混雑でスキップされやすいため中途半端な分にずらす
+    - cron: "13,43 * * * *"
   push:
     branches: [main, "claude/**"]
   workflow_dispatch:
