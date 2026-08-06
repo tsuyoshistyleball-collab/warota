@@ -24,8 +24,9 @@ const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 //  v5: 関連記事を最大30件・サムネイル付きに拡大、動画リンクをプレーヤー化 /
 //  v6: 画像直リンクをインライン画像に変換 / v7-9: 不思議.net系の本文セレクタ調整 /
 //  v10: ツイート動画をプレーヤーとして埋め込み / v11: 元サイトの装飾・クラスを保持 /
-//  v12: 痛いニュース対応 + 短すぎる抽出結果のReadabilityフォールバック)
-const ART_VERSION = 12;
+//  v12: 痛いニュース対応 + 短すぎる抽出結果のReadabilityフォールバック /
+//  v13: やらおん#extended対応でツイート埋め込みを保持)
+const ART_VERSION = 13;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -50,6 +51,7 @@ export const BODY_SELECTORS = [
   ".article-body",
   "#article-body",
   ".blogbody", // 痛いニュース等の旧livedoorテンプレート (レス群を含む)
+  "#extended", // やらおん等のWordPress「続き」コンテナ (スレ本文)
   ".entry-content",
   ".ently_text",
   ".entry_body",
