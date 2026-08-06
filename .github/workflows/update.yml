@@ -46,13 +46,6 @@ jobs:
             echo "================ DEBUG: $u"
             node scripts/debug-extract.mjs "$u" || true
           done < debug-urls.txt
-      # 一時対応: サーバー側で進行中のまま固まったデプロイをキャンセルして詰まりを解消する
-      - name: Cancel stuck Pages deployment
-        run: |
-          curl -sS -X POST \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/pages/deployments/dfd6049725365d9b6017a21160b046f1319125ed/cancel" || true
       - uses: actions/configure-pages@v5
         with:
           # Pages 未設定でもワークフローが自動で有効化する
