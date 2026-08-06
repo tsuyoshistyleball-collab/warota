@@ -5,10 +5,23 @@ import { parseHTML } from "linkedom";
 import { fetchText } from "./fetchtext.mjs";
 import { extract, BODY_SELECTORS } from "./build-articles.mjs";
 
-const url = process.argv[2];
+let url = process.argv[2];
 if (!url) {
-  console.error("usage: node scripts/debug-extract.mjs <url>");
+  console.error("usage: node scripts/debug-extract.mjs <url | 'feed <feedURL> <キーワード>'>");
   process.exit(1);
+}
+
+// "feed <フィードURL> <キーワード>" 形式ならフィードから記事を探す
+if (url.startsWith("feed ")) {
+  const [, feedUrl, ...kw] = url.split(/\s+/);
+  const keyword = kw.join(" ");
+  const { parseFeed } = await import("./feedparser.mjs");
+  const xml = await fetchText(feedUrl, 20_000, "application/rss+xml, application/xml, text/xml, */*");
+  const items = parseFeed(xml);
+  const hit = items.find((i) => keyword && i.title.includes(keyword)) ?? items[0];
+  console.log(`=== feed mode: ${items.length} items, selected: "${hit?.title}"`);
+  if (!hit) process.exit(1);
+  url = hit.link;
 }
 
 const html = await fetchText(url, 20_000);
@@ -63,6 +76,18 @@ if (more) {
 } else {
   console.log("  なし");
 }
+
+console.log("\n=== ツイート埋め込み・iframeの状況");
+for (const bq of document.querySelectorAll("blockquote")) {
+  const cls = bq.getAttribute("class") ?? "";
+  if (!/twitter|tweet|instagram|imgur|tiktok/i.test(cls)) continue;
+  const links = [...bq.querySelectorAll("a[href]")].map((a) => a.getAttribute("href"));
+  console.log(`  blockquote[${cls}]: links=${JSON.stringify(links.slice(0, 5))}`);
+}
+const iframes = [...document.querySelectorAll("iframe")].map((f) =>
+  (f.getAttribute("src") ?? f.getAttribute("data-src") ?? "").slice(0, 100),
+);
+if (iframes.length > 0) console.log(`  iframes: ${JSON.stringify(iframes.slice(0, 10))}`);
 
 console.log("\n=== extract() の結果");
 const res = await extract(html, url);
