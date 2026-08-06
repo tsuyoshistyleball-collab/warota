@@ -2,7 +2,7 @@
 // usage: node scripts/debug-extract.mjs <記事URL>
 
 import { parseHTML } from "linkedom";
-import { fetchText } from "./fetchtext.mjs";
+import { fetchTextWithFallback } from "./fetchtext.mjs";
 import { extract, BODY_SELECTORS } from "./build-articles.mjs";
 
 let url = process.argv[2];
@@ -16,7 +16,7 @@ if (url.startsWith("feed ")) {
   const [, feedUrl, ...kw] = url.split(/\s+/);
   const keyword = kw.join(" ");
   const { parseFeed } = await import("./feedparser.mjs");
-  const xml = await fetchText(feedUrl, 20_000, "application/rss+xml, application/xml, text/xml, */*");
+  const xml = await fetchTextWithFallback(feedUrl, 20_000, "application/rss+xml, application/xml, text/xml, */*");
   const items = parseFeed(xml);
   const hit = items.find((i) => keyword && i.title.includes(keyword)) ?? items[0];
   console.log(`=== feed mode: ${items.length} items, selected: "${hit?.title}"`);
@@ -24,7 +24,7 @@ if (url.startsWith("feed ")) {
   url = hit.link;
 }
 
-const html = await fetchText(url, 20_000);
+const html = await fetchTextWithFallback(url, 20_000);
 console.log(`=== page: ${url} (${html.length} chars)`);
 
 const { document } = parseHTML(html);

@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { parseHTML } from "linkedom";
 import { Readability } from "@mozilla/readability";
-import { fetchText } from "./fetchtext.mjs";
+import { fetchText, fetchTextWithFallback } from "./fetchtext.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const OUT = path.join(ROOT, "public");
@@ -435,7 +435,7 @@ async function main() {
   await pool(pending, CONCURRENCY, async (item) => {
     const [, title, url] = item;
     try {
-      const html = await fetchText(url, FETCH_TIMEOUT_MS);
+      const html = await fetchTextWithFallback(url, FETCH_TIMEOUT_MS);
       const body = await extract(html, url);
       if (!body) throw new Error("no content");
       const h = hashUrl(url);

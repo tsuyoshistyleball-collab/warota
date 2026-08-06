@@ -13,6 +13,23 @@ const ALIASES = {
   utf8: "utf-8",
 };
 
+// https で失敗したら http (またはその逆) でも試すフォールバック付き。
+// 一部サイトはCDN/WAFの問題でhttpsが不安定なことがある
+export async function fetchTextWithFallback(url, timeoutMs, accept = "*/*") {
+  try {
+    return await fetchText(url, timeoutMs, accept);
+  } catch (err) {
+    const alt = url.startsWith("https://")
+      ? url.replace(/^https:/, "http:")
+      : url.replace(/^http:/, "https:");
+    try {
+      return await fetchText(alt, timeoutMs, accept);
+    } catch {
+      throw err;
+    }
+  }
+}
+
 export async function fetchText(url, timeoutMs, accept = "*/*") {
   const res = await fetch(url, {
     headers: { "user-agent": UA, accept, "accept-language": "ja,en;q=0.8" },
