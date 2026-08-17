@@ -25,8 +25,9 @@ const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 //  v6: 画像直リンクをインライン画像に変換 / v7-9: 不思議.net系の本文セレクタ調整 /
 //  v10: ツイート動画をプレーヤーとして埋め込み / v11: 元サイトの装飾・クラスを保持 /
 //  v12: 痛いニュース対応 + 短すぎる抽出結果のReadabilityフォールバック /
-//  v13: やらおん#extended対応でツイート埋め込みを保持)
-const ART_VERSION = 13;
+//  v13: やらおん#extended対応でツイート埋め込みを保持 /
+//  v14: アルファルファの.article_bodymore対応 + 画像・動画を本文量として加点)
+const ART_VERSION = 14;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -314,6 +315,9 @@ async function enrichTweets(document) {
 async function enrichImgur(document) {
   const embeds = [...document.querySelectorAll("blockquote.imgur-embed-pub")].slice(0, 8);
   for (const bq of embeds) {
+    // 画像ファイルへの直リンクを既に含む埋め込みは、リンク→<img>変換に任せる (二重表示防止)
+    const direct = bq.querySelector("a[href*='i.imgur.com']");
+    if (direct && /\.(jpe?g|png|gif|webp)([?#]|$)/i.test(direct.getAttribute("href") ?? "")) continue;
     let id = bq.getAttribute("data-id") ?? "";
     if (!id) {
       const a = bq.querySelector("a[href*='imgur.com']");
@@ -352,14 +356,16 @@ export async function extract(html, url) {
   for (const sel of BODY_SELECTORS) {
     const els = [...document.querySelectorAll(sel)];
     const totalLen = els.reduce((n, el) => n + el.textContent.trim().length, 0);
-    if (els.length > 0 && totalLen > 100) {
+    // 文字数が少なくても画像・埋め込みがあれば本文とみなす (画像だけのレス対策)
+    const hasMedia = els.some((el) => el.querySelector("img, blockquote, video"));
+    if (els.length > 0 && (totalLen > 100 || hasMedia)) {
       roots = els;
       break;
     }
   }
   if (roots.length > 0) {
     // 「続きを読む」以降が別コンテナのブログに対応
-    for (const sel of ["#more", "#article-more", ".article-body-more", ".article-more", ".entry-more", ".more_body"]) {
+    for (const sel of ["#more", "#article-more", ".article-body-more", ".article-more", ".entry-more", ".more_body", ".article_bodymore"]) {
       for (const el of document.querySelectorAll(sel)) {
         if (!roots.some((r) => r.contains(el) || el.contains(r))) roots.push(el);
       }
@@ -377,17 +383,22 @@ export async function extract(html, url) {
       .trim();
   };
   const textOf = (s) => s.replace(/<[^>]*>/g, "").trim();
+  // 本文量の評価は文字数 + 画像/動画も加点する
+  // (画像中心の記事が「短すぎる」と誤判定されて推定エンジンのゴミに負けるのを防ぐ)
+  const scoreOf = (s) =>
+    textOf(s).length +
+    150 * ((s.match(/<img/g) ?? []).length + (s.match(/<video/g) ?? []).length);
 
   let out = roots.length > 0 ? sanitizeRoots(roots) : "";
-  // セレクタで取れた本文が短すぎる場合は、Readabilityの本文推定と比較して
-  // 明確に長い方を採用する (未知のテンプレートでレス群を取りこぼす対策)
-  if (textOf(out).length < 600) {
+  // セレクタで取れた本文が乏しい場合は、Readabilityの本文推定と比較して
+  // 明確に充実している方を採用する (未知のテンプレートでレス群を取りこぼす対策)
+  if (scoreOf(out) < 600) {
     try {
       const article = new Readability(document, { charThreshold: 100 }).parse();
       if (article?.content) {
         const altRoot = parseHTML(`<div>${article.content}</div>`).document.querySelector("div");
         const altOut = sanitizeRoots([altRoot]);
-        if (textOf(altOut).length > textOf(out).length * 1.3) out = altOut;
+        if (scoreOf(altOut) > scoreOf(out) * 1.3) out = altOut;
       }
     } catch {}
   }
