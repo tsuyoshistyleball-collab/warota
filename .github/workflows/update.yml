@@ -15,8 +15,10 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  # "pages" は 2026-10-18 に実行が Queued のまま進まなくなったため改名。
+  # 実行中のデプロイを打ち切ると Pages 側で固まる (8/6 に発生) のでキャンセルしない
+  group: update-pages
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
