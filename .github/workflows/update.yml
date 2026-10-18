@@ -55,3 +55,24 @@ jobs:
           path: public
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # 公開リポジトリは60日間コミットがないと GitHub が定期実行を自動停止するため
+  # (2026-10-16 に実際に停止した)、最後のコミットから50日経ったら空コミットを積む。
+  # 書き込み権限は外部の記事を扱う上のジョブには渡さず、このジョブだけに付ける
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keep schedule alive
+        run: |
+          days=$(( ($(date +%s) - $(git log -1 --format=%ct)) / 86400 ))
+          echo "最後のコミットから ${days} 日経過"
+          if [ "$days" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "keepalive: 定期実行の自動停止を防ぐ空コミット"
+            git push
+          fi
