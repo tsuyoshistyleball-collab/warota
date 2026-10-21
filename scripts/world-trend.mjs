@@ -36,6 +36,8 @@ const WEAK_WORDS = [
   "不正", "アクセス", "対策", "支援", "国家安全保障", "制度", "改革", "計画", "予定", "開催", "実施", "結果",
   "理由", "背景", "規制", "禁止", "導入", "発見", "開発", "研究", "記者会見", "上昇", "下落", "増加", "減少",
   "過去", "最大", "最高", "最多", "大雨", "警報", "注意報", "土砂災害", "台風", "地震", "AI", "SNS",
+  "運転手", "トラック", "乗用車", "衝突", "重傷", "現場", "遺族", "提訴", "判決", "裁判", "起訴", "有罪",
+  "共産党", "公明党", "立憲民主党", "国民民主党", "維新", "中道",
 ];
 const WEAK_TERMS = new Set(WEAK_WORDS.flatMap((w) => [...terms(w).keys()]));
 
@@ -141,6 +143,14 @@ export function clusterItems(items) {
     }
   });
   return clusters.map((c) => c.members.map((i) => sorted[i]));
+}
+
+// 話題の中で一番「中心的な」記事の順に並べる (他の記事と共通する手がかり語が多い見出しほど、
+// その話題を代表している。刺激的な見出しの特集記事より、出来事そのものを伝える見出しが選ばれやすい)
+export function byCentrality(members) {
+  const sets = members.map((m) => new Set([...terms(m.title).keys()].filter((k) => k.length > 1 && !WEAK_TERMS.has(k))));
+  const score = sets.map((s, i) => sets.reduce((n, o, j) => (i === j ? n : n + [...s].filter((k) => o.has(k)).length), 0));
+  return members.map((m, i) => ({ m, s: score[i] })).sort((a, b) => b.s - a.s).map(({ m, s }) => ({ member: m, centrality: s }));
 }
 
 // 記事を選んで紹介するだけの「まとめ役」は、報じた媒体の数に入れない

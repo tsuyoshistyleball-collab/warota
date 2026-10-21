@@ -123,6 +123,15 @@ function splitRussia(geometry) {
   };
 }
 
+// グリーンランドの東端 (西経25度より東) は切れ目の反対側 (地図の左上) に出てしまうので、切れ目の手前に寄せる
+function clampGreenland(geometry) {
+  const limit = -(180 - CENTER_LON) - 0.3;
+  const clamp = (rings) => rings.map((r) => r.map(([x, y]) => [Math.min(x, limit), y]));
+  return geometry.type === "Polygon"
+    ? { type: "Polygon", coordinates: clamp(geometry.coordinates) }
+    : { type: "MultiPolygon", coordinates: geometry.coordinates.map(clamp) };
+}
+
 function splitFrance(geometry) {
   const polys = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
   const meanLon = (rings) => rings[0].reduce((n, [x]) => n + x, 0) / rings[0].length;
@@ -154,6 +163,8 @@ for (const g of countries.geometries) {
     uralSeam = r.seam;
   } else if (key === "250") {
     pieces = splitFrance(f.geometry);
+  } else if (key === "304") {
+    pieces = [[region, clampGreenland(f.geometry)]];
   }
   for (const [r, geom] of pieces) {
     const d = pathGen(geom);
@@ -164,11 +175,14 @@ if (missing.length) throw new Error(`地域が決まっていない国があり�
 
 // ---- 境界線 ----
 
-// 国境の線を引くときの地域。ロシアは中国・モンゴル・北朝鮮との国境だけアジア側として扱う
+// 国境の線を引くときの地域。ロシアは中国・モンゴル・北朝鮮との国境だけアジア側、
+// フランスはブラジル・スリナムとの国境 (仏領ギアナ) だけ中南米側として扱う
 const ASIAN_RUSSIA_NEIGHBORS = new Set(["156", "496", "408"]);
+const GUIANA_NEIGHBORS = new Set(["076", "740"]);
 function borderRegion(g, other) {
   const key = keyOf(g);
   if (key === "643" && ASIAN_RUSSIA_NEIGHBORS.has(keyOf(other))) return "asia";
+  if (key === "250" && GUIANA_NEIGHBORS.has(keyOf(other))) return "latam";
   return regionByKey.get(key);
 }
 const visible = (g) => !EXCLUDE.has(keyOf(g));

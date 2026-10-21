@@ -17,7 +17,7 @@ import path from "node:path";
 import { parseFeed, decodeEntities } from "./feedparser.mjs";
 import { fetchText, fetchTextWithFallback } from "./fetchtext.mjs";
 import { REGIONS, classify, regionScores } from "./world-regions.mjs";
-import { clusterItems, trendScore } from "./world-trend.mjs";
+import { clusterItems, trendScore, byCentrality } from "./world-trend.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const OUT_DIR = path.join(ROOT, "public");
@@ -249,15 +249,16 @@ function buildRanking(items, feedsByName, now) {
     const top = Math.max(...weights.values());
     for (const [r, w] of weights) if (w < top && w < SECOND_REGION_WEIGHT) weights.delete(r);
 
-    // 代表記事: 概要文が要約として使える長さか → 配信元の優先順 → 新しさ
+    // 代表記事: 概要文が要約として使える長さか → 話題の中心的な見出しか + 配信元の優先順 → 新しさ
     const pr = (o) => {
       const i = OUTLET_PRIORITY.indexOf(o);
       return i < 0 ? OUTLET_PRIORITY.length : i;
     };
-    const rep = [...content].sort(
-      (a, b) =>
-        Number(b.d.length >= 40) - Number(a.d.length >= 40) || pr(a.outlet) - pr(b.outlet) || b.ts - a.ts,
-    )[0];
+    const central = new Map(byCentrality(members).map(({ member, centrality }) => [member, centrality]));
+    const maxCentral = Math.max(1, ...central.values());
+    const repScore = (m) =>
+      (m.d.length >= 40 ? 2 : 0) + central.get(m) / maxCentral + (OUTLET_PRIORITY.length - pr(m.outlet)) * 0.05;
+    const rep = [...content].sort((a, b) => repScore(b) - repScore(a) || b.ts - a.ts)[0];
 
     // 同じ話題を伝えた他の媒体
     const seen = new Set([rep.outlet]);
