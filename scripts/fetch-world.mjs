@@ -1,16 +1,36 @@
 // world-feeds.json のニュースフィードを取得して、地域別の話題ニュース public/world.json を作る。
 // GitHub Actions 上で定期実行される想定 (依存パッケージなし / Node 20+)。
-//   node scripts/fetch-world.mjs          … 通常実行 (world.json を書き出す)
-//   node scripts/fetch-world.mjs --probe  … フィードごとの取得状況だけを表示 (メンテ用)
+//   node scripts/fetch-world.mjs            … 通常実行 (world.json を書き出す)
+//   node scripts/fetch-world.mjs --dry-run  … 書き出さずに地域ごとの結果を表示 (メンテ用)
+//   node scripts/fetch-world.mjs --probe    … フィードごとの取得状況だけを表示 (メンテ用)
+//
+// 1. 各フィードを取得し、前回までの記事 (最大4日分) と合わせる
+// 2. 見出しの国名・地名から地域を判定する (world-regions.mjs)
+// 3. 同じ出来事を伝える記事をまとめ、話題度を計算する (world-trend.mjs)
+// 4. 地域ごとに話題度の高い順に10件を選び、要約 (配信元の概要文) と画像を付ける
+// 失敗してもデプロイ全体を止めないよう、例外は握りつぶして空の結果を書き出す。
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
-import { parseFeed } from "./feedparser.mjs";
-import { fetchTextWithFallback } from "./fetchtext.mjs";
+import { parseFeed, decodeEntities } from "./feedparser.mjs";
+import { fetchText, fetchTextWithFallback } from "./fetchtext.mjs";
+import { REGIONS, classify } from "./world-regions.mjs";
+import { clusterItems, trendScore } from "./world-trend.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const OUT_DIR = path.join(ROOT, "public");
+const PAGES_BASE = process.env.PAGES_BASE; // 前回の world-cache.json を取りに行く公開URL
 const FEED_TIMEOUT_MS = 20_000;
+const PAGE_TIMEOUT_MS = 10_000;
+const KEEP_MS = 4 * 24 * 3600_000; // 記事を覚えておく期間
+const TOP_N = 10;
+const MIN_REGION_WEIGHT = 0.3;
+const MAX_PAGE_FETCHES = 60; // 1回の実行で記事ページを読みに行く上限
+const PAGE_RETRY_MS = 12 * 3600_000; // 画像などが取れなかったページを再訪するまでの間隔
+// 要約に使う配信元の優先順 (概要文が丁寧な順)
+const OUTLET_PRIORITY = ["NHK", "BBC", "AFP", "共同通信", "時事通信", "TBS"];
 
 async function loadFeeds() {
   return JSON.parse(await readFile(path.join(ROOT, "world-feeds.json"), "utf8"));
@@ -47,6 +67,226 @@ async function fetchAllFeeds(feeds) {
   );
 }
 
+// ---- 見出し・媒体名・概要文の整理 ----
+
+// Yahoo!ニュースの「…(共同通信)」、Googleニュースの「… - 読売新聞」から媒体名を分ける
+function splitOutlet(feed, title) {
+  if (feed.outletFrom === "paren") {
+    const m = title.match(/^(.*\S)\s*[（(]([^（()）]{1,24})[)）]$/);
+    if (m) return { title: m[1], outlet: m[2] };
+  } else if (feed.outletFrom === "dash") {
+    const m = title.match(/^(.*\S)\s+-\s+([^-]{1,30})$/);
+    if (m) return { title: m[1], outlet: m[2] };
+  }
+  return { title, outlet: feed.outlet ?? feed.name };
+}
+
+// 【動画】【速報】などの見出しの飾りを外す
+const displayTitle = (t) => t.replace(/^(?:【[^】]{1,12}】\s*)+/, "").trim();
+
+// 配信元の概要文を要約として使えるように整える
+function cleanSummary(text, title) {
+  let s = (text ?? "")
+    .replace(/^【[^】]{1,30}】\s*/, "") // 【10月22日 AFP】【ワシントン共同】
+    .replace(/\s*(?:≫|>>)?\s*続きを読む.*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (s.startsWith(title)) s = s.slice(title.length).trim();
+  if (s.length < 20 || title.includes(s)) return "";
+  if (s.length > 220) {
+    const cut = s.lastIndexOf("。", 220);
+    s = cut > 80 ? s.slice(0, cut + 1) : `${s.slice(0, 200)}…`;
+  }
+  return s;
+}
+
+// ---- 前回までの記事 (world-cache.json) ----
+
+async function loadCache() {
+  const empty = { items: [], pages: {} };
+  if (!PAGES_BASE) return empty;
+  try {
+    const res = await fetch(`${PAGES_BASE}/world-cache.json?t=${Date.now()}`, {
+      signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const c = await res.json();
+    return { items: Array.isArray(c.items) ? c.items : [], pages: c.pages ?? {} };
+  } catch (err) {
+    console.log(`world-cache: 前回分なし (${errDetail(err)})`);
+    return empty;
+  }
+}
+
+// 今回取得した記事と前回までの記事を合わせる。日付のない記事は最初に見た時刻を使う
+function mergeItems(results, cache, feedsByName, now) {
+  const byLink = new Map();
+  for (const it of cache.items) {
+    if (feedsByName.has(it.f) && now - it.ts <= KEEP_MS) byLink.set(it.l, it);
+  }
+  for (const { feed, items } of results) {
+    items.forEach((raw, rank) => {
+      const { title, outlet } = splitOutlet(feed, raw.title);
+      const prev = byLink.get(raw.link);
+      const ts = raw.ts && raw.ts <= now + 3600_000 ? raw.ts : (prev?.ts ?? now);
+      if (now - ts > KEEP_MS) return;
+      byLink.set(raw.link, {
+        f: feed.name,
+        t: title,
+        l: raw.link,
+        ts,
+        o: outlet,
+        d: feed.role === "content" ? cleanSummary(raw.description, title) : "",
+        i: raw.image ?? prev?.i ?? null,
+        r: rank,
+      });
+    });
+  }
+  return [...byLink.values()];
+}
+
+// ---- 記事ページの og:image / og:description ----
+
+function metaContent(html, names) {
+  for (const name of names) {
+    const re = new RegExp(
+      `<meta[^>]+(?:property|name)=["']${name}["'][^>]*content=["']([^"']+)["']|<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']${name}["']`,
+      "i",
+    );
+    const m = html.match(re);
+    if (m) return decodeEntities(m[1] ?? m[2]).trim();
+  }
+  return null;
+}
+
+async function enrichPages(picks, pages, now) {
+  // 同じ記事が2つの地域に入ることがあるので URL で重複を除く
+  const targets = [...new Map(picks.map((p) => [p.url, p])).values()]
+    .filter((p) => !p.image || !p.summary)
+    .filter((p) => {
+      const c = pages[p.url];
+      return !c || ((!c.i || !c.d) && now - c.at > PAGE_RETRY_MS);
+    })
+    .slice(0, MAX_PAGE_FETCHES);
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: 8 }, async () => {
+      while (i < targets.length) {
+        const p = targets[i++];
+        try {
+          const html = (await fetchText(p.url, PAGE_TIMEOUT_MS, "text/html")).slice(0, 300_000);
+          const image = metaContent(html, ["og:image", "twitter:image"]);
+          pages[p.url] = {
+            i: image && /^https?:\/\//.test(image) ? image : null,
+            d: cleanSummary(metaContent(html, ["og:description", "description"]), p.title),
+            at: now,
+          };
+        } catch {
+          pages[p.url] = { i: null, d: "", at: now };
+        }
+      }
+    }),
+  );
+  for (const p of picks) {
+    const c = pages[p.url];
+    if (!c) continue;
+    p.image ??= c.i;
+    if (!p.summary) p.summary = c.d;
+  }
+  return targets.length;
+}
+
+// ---- 地域ごとの話題ランキング ----
+
+function buildRanking(items, feedsByName, now) {
+  // 記事ごとに地域を判定する
+  const enriched = items.map((it) => {
+    const feed = feedsByName.get(it.f);
+    return {
+      ...it,
+      title: it.t,
+      role: feed.role,
+      boost: feed.boost,
+      rank: it.r,
+      outlet: it.o,
+      regions: classify({ title: it.t, description: it.d }, feed.kind),
+    };
+  });
+
+  const topics = [];
+  for (const members of clusterItems(enriched)) {
+    const content = members.filter((m) => m.role === "content");
+    if (content.length === 0) continue; // 要約の元になる記事がない話題は使わない
+
+    // 話題の地域 = 記事ごとの判定の平均 (どの記事でも出てくる地域ほど強い)
+    const classified = members.filter((m) => m.regions.length > 0);
+    if (classified.length === 0) continue;
+    const weights = new Map();
+    for (const m of classified) {
+      for (const { region, relevance } of m.regions) weights.set(region, (weights.get(region) ?? 0) + relevance);
+    }
+    for (const [r, w] of weights) weights.set(r, Math.min(1, w / classified.length));
+
+    // 代表記事: 概要文が要約として使える長さか → 配信元の優先順 → 新しさ
+    const pr = (o) => {
+      const i = OUTLET_PRIORITY.indexOf(o);
+      return i < 0 ? OUTLET_PRIORITY.length : i;
+    };
+    const rep = [...content].sort(
+      (a, b) =>
+        Number(b.d.length >= 40) - Number(a.d.length >= 40) || pr(a.outlet) - pr(b.outlet) || b.ts - a.ts,
+    )[0];
+
+    // 同じ話題を伝えた他の媒体
+    const seen = new Set([rep.outlet]);
+    const coverage = [];
+    for (const m of [...members].sort((a, b) => Number(b.role === "content") - Number(a.role === "content"))) {
+      if (seen.has(m.outlet) || coverage.length >= 8) continue;
+      seen.add(m.outlet);
+      coverage.push({ s: m.outlet, t: displayTitle(m.t), u: m.l });
+    }
+
+    const trend = trendScore(members, now);
+    topics.push({ weights, trend, rep, coverage, size: members.length });
+  }
+
+  const regions = REGIONS.map(({ id, name }) => {
+    const ranked = topics
+      .filter((t) => (t.weights.get(id) ?? 0) >= MIN_REGION_WEIGHT)
+      .map((t) => ({ t, score: t.trend.score * t.weights.get(id) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, TOP_N);
+    return {
+      id,
+      name,
+      items: ranked.map(({ t, score }) => ({
+        id: createHash("sha1").update(t.rep.l).digest("hex").slice(0, 12),
+        title: displayTitle(t.rep.t),
+        summary: t.rep.d,
+        url: t.rep.l,
+        source: t.rep.outlet,
+        ts: t.trend.newest,
+        image: t.rep.i ?? null,
+        outlets: t.trend.outlets,
+        score: Math.round(score * 100) / 100,
+        coverage: t.coverage,
+      })),
+    };
+  });
+  return { regions, topicCount: topics.length };
+}
+
+// 地域の盛り上がり (地図の光り方) を 0〜1 にする: 上位3件の話題度の合計を最大の地域で割る
+function addHeat(regions) {
+  const sums = regions.map((r) => r.items.slice(0, 3).reduce((n, it) => n + it.score, 0));
+  const max = Math.max(...sums, 0.0001);
+  regions.forEach((r, i) => {
+    r.heat = Math.round((sums[i] / max) * 100) / 100;
+  });
+}
+
+// ---- 表示 (メンテ用) ----
+
 function fmt(ts) {
   if (!ts) return "-";
   const d = new Date(ts + 9 * 3600_000); // JST 表示
@@ -81,15 +321,69 @@ function printProbe(results) {
   }
 }
 
-export async function run({ probe = false } = {}) {
+function printRanking(regions) {
+  for (const r of regions) {
+    console.log(`\n==== ${r.name} (heat ${r.heat}) ${r.items.length}件`);
+    r.items.forEach((it, i) => {
+      console.log(
+        `${String(i + 1).padStart(2)}. [${it.score}] ${it.title.slice(0, 44)}  — ${it.source} / ${it.outlets}社 ${fmt(it.ts)}${it.image ? " 📷" : ""}`,
+      );
+      console.log(`      要約: ${it.summary ? it.summary.slice(0, 60) : "(なし)"}`);
+      if (it.coverage.length) console.log(`      他: ${it.coverage.map((c) => c.s).join("、")}`);
+    });
+  }
+}
+
+// ---- 本体 ----
+
+export async function run({ probe = false, dryRun = false } = {}) {
   const feeds = await loadFeeds();
   const results = await fetchAllFeeds(feeds);
   if (probe) {
     printProbe(results);
     return;
   }
+
+  const now = Date.now();
+  const feedsByName = new Map(feeds.map((f) => [f.name, f]));
+  for (const { feed, items, error } of results) {
+    console.log(error ? `NG ${feed.name}: ${error}` : `OK ${feed.name}: ${items.length} items`);
+  }
+
+  const cache = await loadCache();
+  const items = mergeItems(results, cache, feedsByName, now);
+  const { regions, topicCount } = buildRanking(items, feedsByName, now);
+
+  const picks = regions.flatMap((r) => r.items);
+  const fetched = await enrichPages(picks, cache.pages, now);
+  addHeat(regions);
+
+  console.log(
+    `\n${results.filter((r) => !r.error).length}/${feeds.length} feeds, ${items.length} items, ` +
+      `${topicCount} topics, ${picks.length} picks (pages fetched: ${fetched})`,
+  );
+
+  if (dryRun) {
+    printRanking(regions);
+    return;
+  }
+
+  // 期限切れのページ情報は捨てる
+  const pages = Object.fromEntries(Object.entries(cache.pages).filter(([, c]) => now - c.at <= KEEP_MS));
+  await mkdir(OUT_DIR, { recursive: true });
+  await writeFile(path.join(OUT_DIR, "world.json"), JSON.stringify({ updated: now, regions }));
+  await writeFile(path.join(OUT_DIR, "world-cache.json"), JSON.stringify({ updated: now, items, pages }));
+  console.log("-> public/world.json, public/world-cache.json");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await run({ probe: process.argv.includes("--probe") });
+  try {
+    await run({ probe: process.argv.includes("--probe"), dryRun: process.argv.includes("--dry-run") });
+  } catch (err) {
+    // 世界ニュースの失敗でまとめ記事の更新まで止めないよう、空の結果を書いて正常終了する
+    console.error(`fetch-world failed: ${err?.stack ?? err}`);
+    await mkdir(OUT_DIR, { recursive: true });
+    const regions = REGIONS.map(({ id, name }) => ({ id, name, heat: 0, items: [] }));
+    await writeFile(path.join(OUT_DIR, "world.json"), JSON.stringify({ updated: Date.now(), regions }));
+  }
 }

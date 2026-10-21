@@ -11,10 +11,10 @@ if (!url) {
   process.exit(1);
 }
 
-// "world-probe" なら世界ニュース用フィードの取得状況を表示する
-if (url === "world-probe") {
+// "world-probe" なら世界ニュース用フィードの取得状況を、"world" なら地域別ランキングの試算を表示する
+if (url === "world-probe" || url === "world") {
   const { run } = await import("./fetch-world.mjs");
-  await run({ probe: true });
+  await run(url === "world" ? { dryRun: true } : { probe: true });
   process.exit(0);
 }
 
