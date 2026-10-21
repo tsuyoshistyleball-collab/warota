@@ -9,6 +9,7 @@
   { "name": "Yahoo 国際", "url": "https://news.yahoo.co.jp/rss/categories/world.xml", "kind": "world", "role": "content", "outlet": "Yahoo!ニュース", "outletFrom": "paren" },
   { "name": "Yahoo 国内", "url": "https://news.yahoo.co.jp/rss/categories/domestic.xml", "kind": "japan", "role": "content", "outlet": "Yahoo!ニュース", "outletFrom": "paren" },
   { "name": "TBS NEWS DIG", "url": "https://newsdig.tbs.co.jp/list/feed/rss", "kind": "mixed", "role": "content", "outlet": "TBS" },
+  { "name": "日豪プレス", "url": "https://nichigopress.jp/feed/", "kind": "world", "role": "content", "outlet": "日豪プレス" },
 
   { "name": "Yahoo!トピックス 国際", "url": "https://news.yahoo.co.jp/rss/topics/world.xml", "kind": "world", "role": "signal", "outlet": "Yahoo!トピックス", "boost": "topic" },
   { "name": "Yahoo!トピックス 国内", "url": "https://news.yahoo.co.jp/rss/topics/domestic.xml", "kind": "japan", "role": "signal", "outlet": "Yahoo!トピックス", "boost": "topic" },

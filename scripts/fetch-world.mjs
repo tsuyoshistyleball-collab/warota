@@ -27,6 +27,7 @@ const PAGE_TIMEOUT_MS = 10_000;
 const KEEP_MS = 7 * 24 * 3600_000; // 記事を覚えておく期間 (報道の少ない地域を埋めるため1週間)
 const TOP_N = 10;
 const MIN_REGION_WEIGHT = 0.3;
+const SECOND_REGION_WEIGHT = 0.5;
 const MAX_PAGE_FETCHES = 60; // 1回の実行で記事ページを読みに行く上限
 const PAGE_RETRY_MS = 12 * 3600_000; // 画像などが取れなかったページを再訪するまでの間隔
 // 要約に使う配信元の優先順 (概要文が丁寧な順)
@@ -94,6 +95,9 @@ function splitOutlet(feed, title) {
 // 【動画】【速報】などの見出しの飾りを外す
 const displayTitle = (t) => t.replace(/^(?:【[^】]{1,12}】\s*)+/, "").trim();
 
+// 毎日決まって配信される天気予報や、時刻付きの警報の自動配信は「話題のニュース」に入れない
+const ROUTINE = /の天気|天気予報|週間天気|天気情報|【天気】|気象情報|\d{1,2}:\d{2}時点|占い|運勢/;
+
 // 配信元の概要文を要約として使えるように整える
 function cleanSummary(text, title) {
   let s = (text ?? "")
@@ -133,11 +137,12 @@ async function loadCache() {
 function mergeItems(results, cache, feedsByName, now) {
   const byLink = new Map();
   for (const it of cache.items) {
-    if (feedsByName.has(it.f) && now - it.ts <= KEEP_MS) byLink.set(it.l, it);
+    if (feedsByName.has(it.f) && now - it.ts <= KEEP_MS && !ROUTINE.test(it.t)) byLink.set(it.l, it);
   }
   for (const { feed, items } of results) {
     items.forEach((raw, rank) => {
       const { title, outlet } = splitOutlet(feed, raw.title);
+      if (ROUTINE.test(title)) return;
       const prev = byLink.get(raw.link);
       const ts = raw.ts && raw.ts <= now + 3600_000 ? raw.ts : (prev?.ts ?? now);
       if (now - ts > KEEP_MS) return;
@@ -239,6 +244,10 @@ function buildRanking(items, feedsByName, now) {
       for (const { region, relevance } of m.regions) weights.set(region, (weights.get(region) ?? 0) + relevance);
     }
     for (const [r, w] of weights) weights.set(r, Math.min(1, w / classified.length));
+    // 一番強い地域以外は、記事の半数以上がその地域を指しているときだけ載せる
+    // (ロシアの話題の記事の一部が米紙に触れているだけで北米に並ばないように)
+    const top = Math.max(...weights.values());
+    for (const [r, w] of weights) if (w < top && w < SECOND_REGION_WEIGHT) weights.delete(r);
 
     // 代表記事: 概要文が要約として使える長さか → 配信元の優先順 → 新しさ
     const pr = (o) => {
