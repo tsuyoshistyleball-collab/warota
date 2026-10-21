@@ -1,5 +1,5 @@
 // RSS 1.0 (RDF) / RSS 2.0 / Atom を依存ライブラリなしでパースする軽量パーサー。
-// まとめブログのフィード (title / link / 日付) の抽出に必要な範囲だけを扱う。
+// title / link / 日付に加え、ニュース用に概要文 (description) とサムネイル画像も拾う。
 
 const NAMED_ENTITIES = {
   amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
@@ -62,7 +62,39 @@ function parseDate(block) {
   return null;
 }
 
-// フィード XML から記事の配列 [{title, link, ts}] を返す。
+// HTML断片をプレーンテキストにする。二重エスケープ (&amp;lt;p&amp;gt;) のフィードもあるため2回処理する。
+// 段落などの区切りだけ空白にし、<b> などの装飾タグは詰める (日本語の文中に空白を入れない)
+export function htmlToText(html) {
+  let s = html;
+  for (let i = 0; i < 2; i++) {
+    s = decodeEntities(
+      s
+        .replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")
+        .replace(/<(br|\/?(p|div|li|ul|ol|h\d|tr|td|blockquote))\b[^>]*>/gi, " ")
+        .replace(/<[^>]+>/g, ""),
+    );
+  }
+  return s.replace(/\s+/g, " ").trim();
+}
+
+// media:thumbnail / media:content / enclosure / 本文中の最初の <img> から画像URLを拾う
+function itemImage(block) {
+  for (const [, tag, attrs] of block.matchAll(/<(media:thumbnail|media:content|enclosure)\b([^>]*)>/gi)) {
+    const url = attr(attrs, "url");
+    if (!url || !/^https?:\/\//i.test(url)) continue;
+    const isImage =
+      tag.toLowerCase() === "media:thumbnail" ||
+      attr(attrs, "medium") === "image" ||
+      (attr(attrs, "type") ?? "").startsWith("image/") ||
+      /\.(jpe?g|png|webp|gif)(\?|$)/i.test(url);
+    if (isImage) return decodeEntities(url);
+  }
+  const html = decodeEntities(stripCdata(block));
+  const img = html.match(/<img\b[^>]*?\ssrc\s*=\s*["'](https?:\/\/[^"']+)["']/i);
+  return img ? img[1] : null;
+}
+
+// フィード XML から記事の配列 [{title, link, ts, description, image}] を返す。
 export function parseFeed(xml) {
   const items = [];
   // RSS 1.0/2.0 の <item>、Atom の <entry> の両方を拾う
@@ -77,10 +109,13 @@ export function parseFeed(xml) {
       link = atomLink(block);
     }
     if (!title || !link || !/^https?:\/\//i.test(link)) continue;
+    const desc = tagContent(block, "description") ?? tagContent(block, "summary");
     items.push({
       title: title.replace(/\s+/g, " ").trim(),
       link: link.trim(),
       ts: parseDate(block),
+      description: desc ? htmlToText(desc) : "",
+      image: itemImage(block),
     });
   }
   return items;

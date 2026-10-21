@@ -11,6 +11,13 @@ if (!url) {
   process.exit(1);
 }
 
+// "world-probe" なら世界ニュース用フィードの取得状況を表示する
+if (url === "world-probe") {
+  const { run } = await import("./fetch-world.mjs");
+  await run({ probe: true });
+  process.exit(0);
+}
+
 // "feed <フィードURL> <キーワード>" 形式ならフィードから記事を探す
 if (url.startsWith("feed ")) {
   const [, feedUrl, ...kw] = url.split(/\s+/);
