@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import { parseFeed, decodeEntities } from "./feedparser.mjs";
 import { fetchText, fetchTextWithFallback } from "./fetchtext.mjs";
-import { REGIONS, classify } from "./world-regions.mjs";
+import { REGIONS, classify, regionScores } from "./world-regions.mjs";
 import { clusterItems, trendScore } from "./world-trend.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -24,13 +24,26 @@ const OUT_DIR = path.join(ROOT, "public");
 const PAGES_BASE = process.env.PAGES_BASE; // 前回の world-cache.json を取りに行く公開URL
 const FEED_TIMEOUT_MS = 20_000;
 const PAGE_TIMEOUT_MS = 10_000;
-const KEEP_MS = 4 * 24 * 3600_000; // 記事を覚えておく期間
+const KEEP_MS = 7 * 24 * 3600_000; // 記事を覚えておく期間 (報道の少ない地域を埋めるため1週間)
 const TOP_N = 10;
 const MIN_REGION_WEIGHT = 0.3;
 const MAX_PAGE_FETCHES = 60; // 1回の実行で記事ページを読みに行く上限
 const PAGE_RETRY_MS = 12 * 3600_000; // 画像などが取れなかったページを再訪するまでの間隔
 // 要約に使う配信元の優先順 (概要文が丁寧な順)
 const OUTLET_PRIORITY = ["NHK", "BBC", "AFP", "共同通信", "時事通信", "TBS"];
+// 同じ媒体の表記ゆれ (Googleニュースなどでの呼び名) をそろえる
+const OUTLET_ALIASES = {
+  "NHKニュース": "NHK", "NHK NEWS WEB": "NHK", "テレ朝NEWS": "テレビ朝日", "TBS NEWS DIG": "TBS",
+  "日テレNEWS": "日テレ", "日テレNEWS NNN": "日テレ", "産経ニュース": "産経新聞", "CNN.jp": "CNN",
+  "CNN.co.jp": "CNN", "Reuters": "ロイター", "ロイター通信": "ロイター", "FNNプライムオンライン": "FNN",
+  "読売新聞オンライン": "読売新聞", "時事ドットコム": "時事通信", "日経": "日本経済新聞",
+  "毎日新聞デジタル": "毎日新聞", "AFPBB News": "AFP", "BBCニュース": "BBC",
+};
+// 報道機関として扱う媒体。これ以外 (雑誌・個人系) だけが伝える話題は順位を下げる
+const NEWS_OUTLETS = new Set([
+  ...OUTLET_PRIORITY, "朝日新聞", "読売新聞", "毎日新聞", "日本経済新聞", "産経新聞", "東京新聞", "日テレ",
+  "テレビ朝日", "FNN", "CNN", "ロイター", "ブルームバーグ", "Yahoo!ニュース",
+]);
 
 async function loadFeeds() {
   return JSON.parse(await readFile(path.join(ROOT, "world-feeds.json"), "utf8"));
@@ -71,14 +84,11 @@ async function fetchAllFeeds(feeds) {
 
 // Yahoo!ニュースの「…(共同通信)」、Googleニュースの「… - 読売新聞」から媒体名を分ける
 function splitOutlet(feed, title) {
-  if (feed.outletFrom === "paren") {
-    const m = title.match(/^(.*\S)\s*[（(]([^（()）]{1,24})[)）]$/);
-    if (m) return { title: m[1], outlet: m[2] };
-  } else if (feed.outletFrom === "dash") {
-    const m = title.match(/^(.*\S)\s+-\s+([^-]{1,30})$/);
-    if (m) return { title: m[1], outlet: m[2] };
-  }
-  return { title, outlet: feed.outlet ?? feed.name };
+  let m = null;
+  if (feed.outletFrom === "paren") m = title.match(/^(.*\S)\s*[（(]([^（()）]{1,24})[)）]$/);
+  else if (feed.outletFrom === "dash") m = title.match(/^(.*\S)\s+-\s+([^-]{1,30})$/);
+  const outlet = (m?.[2] ?? feed.outlet ?? feed.name).trim();
+  return { title: m?.[1] ?? title, outlet: OUTLET_ALIASES[outlet] ?? outlet };
 }
 
 // 【動画】【速報】などの見出しの飾りを外す
@@ -88,6 +98,7 @@ const displayTitle = (t) => t.replace(/^(?:【[^】]{1,12}】\s*)+/, "").trim();
 function cleanSummary(text, title) {
   let s = (text ?? "")
     .replace(/^【[^】]{1,30}】\s*/, "") // 【10月22日 AFP】【ワシントン共同】
+    .replace(/^[（(][^（()）]{1,20}[)）]\s*[:：]?\s*/, "") // （ブルームバーグ）：
     .replace(/\s*(?:≫|>>)?\s*続きを読む.*$/, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -210,6 +221,8 @@ function buildRanking(items, feedsByName, now) {
       rank: it.r,
       outlet: it.o,
       regions: classify({ title: it.t, description: it.d }, feed.kind),
+      // 見出しに出てくる地域 (別の国の話題を同じ話題にまとめないために使う)
+      geo: new Set(regionScores(it.t).keys()),
     };
   });
 
@@ -247,7 +260,9 @@ function buildRanking(items, feedsByName, now) {
     }
 
     const trend = trendScore(members, now);
-    topics.push({ weights, trend, rep, coverage, size: members.length });
+    // 報道機関が1社も伝えていない話題 (雑誌の特集など) は順位を下げる
+    if (!members.some((m) => NEWS_OUTLETS.has(m.outlet))) trend.score *= 0.5;
+    topics.push({ weights, trend, rep, coverage, members });
   }
 
   const regions = REGIONS.map(({ id, name }) => {
@@ -273,7 +288,7 @@ function buildRanking(items, feedsByName, now) {
       })),
     };
   });
-  return { regions, topicCount: topics.length };
+  return { regions, topics };
 }
 
 // 地域の盛り上がり (地図の光り方) を 0〜1 にする: 上位3件の話題度の合計を最大の地域で割る
@@ -321,6 +336,16 @@ function printProbe(results) {
   }
 }
 
+// まとめ方の確認用: 記事数の多い話題について、まとめた見出しを並べる
+function printBigTopics(topics) {
+  console.log("\n==== 記事数の多い話題 (まとめ方の確認)");
+  for (const t of [...topics].sort((a, b) => b.members.length - a.members.length).slice(0, 10)) {
+    const regions = [...t.weights].map(([r, w]) => `${r}:${w.toFixed(2)}`).join(" ");
+    console.log(`■ ${t.members.length}件 ${t.trend.outlets}社 [${regions}]`);
+    for (const m of t.members.slice(0, 6)) console.log(`    ${m.outlet}: ${m.t.slice(0, 48)}`);
+  }
+}
+
 function printRanking(regions) {
   for (const r of regions) {
     console.log(`\n==== ${r.name} (heat ${r.heat}) ${r.items.length}件`);
@@ -352,7 +377,7 @@ export async function run({ probe = false, dryRun = false } = {}) {
 
   const cache = await loadCache();
   const items = mergeItems(results, cache, feedsByName, now);
-  const { regions, topicCount } = buildRanking(items, feedsByName, now);
+  const { regions, topics } = buildRanking(items, feedsByName, now);
 
   const picks = regions.flatMap((r) => r.items);
   const fetched = await enrichPages(picks, cache.pages, now);
@@ -360,10 +385,11 @@ export async function run({ probe = false, dryRun = false } = {}) {
 
   console.log(
     `\n${results.filter((r) => !r.error).length}/${feeds.length} feeds, ${items.length} items, ` +
-      `${topicCount} topics, ${picks.length} picks (pages fetched: ${fetched})`,
+      `${topics.length} topics, ${picks.length} picks (pages fetched: ${fetched})`,
   );
 
   if (dryRun) {
+    printBigTopics(topics);
     printRanking(regions);
     return;
   }
