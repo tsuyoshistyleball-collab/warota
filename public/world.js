@@ -1109,6 +1109,12 @@
     // 地域や記事の画面が全面に重なっている (引っ張って更新を効かせない)
     overlayOpen: () => document.body.classList.contains("w-overlay"),
     refresh: () => loadWorld(true),
+    // 指で動かせる地図を、上の端に着くまでに指を下へ何px動かせるか (引っ張って更新は、その先の引っ張りで判定する)
+    mapPullSlack: () => {
+      if (!homeMap) return 0;
+      const h = $("map-stage").getBoundingClientRect().height;
+      return Math.max(0, ((homeMap.vb[1] - mapData.viewBox[1]) / homeMap.vb[3]) * h);
+    },
   };
 
   // この履歴に番号を付けて始める (再読み込みでは番号が残る)

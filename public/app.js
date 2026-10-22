@@ -454,51 +454,89 @@ $("btn-clear-read").onclick = () => {
   clearedTimer = setTimeout(() => { note.textContent = "まとめの記事の既読の印をすべて消します"; }, 2000);
 };
 
-// ---- プルリフレッシュ ----
+// ---- プルリフレッシュ (画面を下へ引っ張って更新) ----
 (() => {
   const ptr = $("ptr");
+  const ring = ptr.querySelector("span");
+  const PULL = 70; // これだけ引っ張って離すと更新する (px)
+  let startX = 0;
   let startY = null;
+  let slack = 0; // 引っ張りに数えない分 (指で動かせる地図が、上の端に着くまでの指の動き)
   let pulled = false;
+  let busy = false;
 
   // 触った場所が一番上までスクロールされているか (ワールド画面の右側の一覧など、ページ以外のスクロールも見る)
   const atTop = (el) => {
     for (; el && el !== document.body; el = el.parentElement) if (el.scrollTop > 0) return false;
     return window.scrollY === 0;
   };
+  // 引っ張った長さに合わせて、印を下ろしながら回す
+  const show = (pull) => {
+    const p = Math.min(pull, PULL * 1.8);
+    ptr.classList.add("visible", "pulling");
+    ptr.classList.toggle("ready", pull >= PULL);
+    ptr.style.opacity = String(Math.min(1, p / PULL));
+    ptr.style.transform = `translateY(${p * 0.45}px)`;
+    ring.style.transform = `rotate(${p * 3}deg)`;
+  };
+  const hide = () => {
+    ptr.classList.remove("visible", "pulling", "ready", "loading");
+    ptr.style.opacity = "";
+    ptr.style.transform = "";
+    ring.style.transform = "";
+  };
 
   window.addEventListener("touchstart", (e) => {
-    const onMap = e.target.closest?.(".map-stage.pannable"); // 指で動かせる地図の上では、指は地図を動かすのに使う
     const onSettings = window.World?.view() === "settings"; // 設定の画面には更新するものがない
-    if (!onMap && !onSettings && atTop(e.target) && !readerOpen && !window.World?.overlayOpen()) {
-      startY = e.touches[0].clientY;
-      pulled = false;
-    } else {
+    if (busy || e.touches.length > 1 || onSettings || !atTop(e.target) || readerOpen || window.World?.overlayOpen()) {
       startY = null;
+      return;
     }
+    // 指で動かせる地図の上では、地図が上の端に着くまでは指で地図を動かし、その先の引っ張りで更新する
+    const onMap = e.target.closest?.(".map-stage.pannable") && !e.target.closest("button");
+    slack = onMap ? window.World?.mapPullSlack?.() ?? Infinity : 0;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    pulled = false;
   }, { passive: true });
 
   window.addEventListener("touchmove", (e) => {
     if (startY === null) return;
+    // 2本指 (地図の拡大縮小) や、横へのスワイプ (タブの切り替え) は引っ張りではない
+    const dx = e.touches[0].clientX - startX;
     const dy = e.touches[0].clientY - startY;
-    if (dy > 70) {
-      pulled = true;
-      ptr.classList.add("visible");
-    } else {
-      ptr.classList.remove("visible");
+    if (e.touches.length > 1 || (Math.abs(dx) > 24 && Math.abs(dx) > dy)) {
+      startY = null;
       pulled = false;
+      hide();
+      return;
     }
+    const pull = dy - slack;
+    pulled = pull >= PULL;
+    if (pull > 8) show(pull);
+    else hide();
   }, { passive: true });
 
   window.addEventListener("touchend", async () => {
-    if (pulled) {
-      ptr.classList.add("loading");
-      await (window.World?.isActive() ? window.World.refresh() : loadData(true));
-      ptr.classList.remove("loading", "visible");
-    } else {
-      ptr.classList.remove("visible");
-    }
+    if (startY === null) return;
     startY = null;
+    if (!pulled) {
+      hide();
+      return;
+    }
     pulled = false;
+    busy = true;
+    ptr.classList.remove("pulling", "ready");
+    ptr.classList.add("loading");
+    ptr.style.opacity = "1";
+    ptr.style.transform = `translateY(${PULL * 0.45}px)`;
+    ring.style.transform = "";
+    try {
+      await (window.World?.isActive() ? window.World.refresh() : loadData(true));
+    } finally {
+      hide();
+      busy = false;
+    }
   });
 })();
 

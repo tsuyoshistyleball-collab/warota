@@ -200,16 +200,21 @@ li.read .item-title { color: var(--read); font-weight: 400; }
   z-index: 20;
   pointer-events: none;
   opacity: 0;
-  transition: opacity .15s;
+  transition: opacity .15s, transform .2s;
 }
 #ptr.visible { opacity: 1; }
+/* 引っ張っている間は指に合わせて動かす (遅れないように、なめらかに動かす効果を切る) */
+#ptr.pulling { transition: none; }
 #ptr span {
   width: 26px; height: 26px;
   border: 3px solid var(--line);
   border-top-color: var(--accent);
   border-radius: 50%;
   background: var(--bg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
 }
+/* ここで離すと更新する、という合図 */
+#ptr.ready span { border-color: var(--accent); border-top-color: var(--line); }
 #ptr.loading span { animation: spin .8s linear infinite; }
 
 /* reader */
