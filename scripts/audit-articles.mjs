@@ -135,9 +135,59 @@ export async function auditArticle(site, item, showHtml = false) {
   if (showHtml) {
     const flat = res.html.replace(/\s+/g, " ");
     lines.push(`    html head: ${flat.slice(0, 1500)}`);
-    if (flat.length > 1500) lines.push(`    html tail: ${flat.slice(-700)}`);
+    if (flat.length > 1500) lines.push(`    html tail: ${flat.slice(-1500)}`);
   }
   return lines;
+}
+
+// 元ページで、指定した文字を含むいちばん内側の要素 (または CSS セレクタに一致する要素) の周りの HTML と、
+// 抽出結果の同じ場所を出す。本文以外が残ったときに、元のページでどう書かれているかを調べる
+// spec: "<サイト番号>[.<記事番号>] <文字 | sel:セレクタ>" か "<記事URL> <文字 | sel:セレクタ>"。";;" で区切って複数
+export async function snip(spec = "") {
+  const feeds = JSON.parse(await readFile(new URL("../feeds.json", import.meta.url), "utf8"));
+  for (const one of spec.split(";;")) {
+    const [target = "", ...words] = one.trim().split(/\s+/);
+    const needle = words.join(" ");
+    if (!target || !needle) continue;
+    let link = target;
+    let title = "";
+    if (!/^https?:/.test(target)) {
+      const [siteNo, artNo = "0"] = target.split(".");
+      const feed = feeds[Number(siteNo)];
+      const xml = await fetchTextWithFallback(feed.url, 20_000, "application/rss+xml, application/xml, text/xml, */*");
+      const item = parseFeed(xml)[Number(artNo)];
+      if (!item) continue;
+      ({ link, title } = item);
+    }
+    console.log(`\n######## ${target} "${needle}"\n    ${title} ${link}`);
+    let html;
+    try {
+      html = await fetchTextWithFallback(link, 20_000);
+    } catch (err) {
+      console.log(`    FETCH NG: ${err.message}`);
+      continue;
+    }
+    const { document } = parseHTML(html);
+    const hits = needle.startsWith("sel:")
+      ? [...document.querySelectorAll(needle.slice(4))]
+      : [...document.querySelectorAll("body *")].filter(
+          (el) => el.textContent.includes(needle) && ![...el.children].some((c) => c.textContent.includes(needle)),
+        );
+    console.log(`    ${hits.length} hits`);
+    for (const el of hits.slice(0, 3)) {
+      // 周りの様子がわかるよう、ある程度の大きさになるまで外側へ広げる
+      let box = el;
+      while (box.parentElement && box.parentElement.tagName !== "BODY" && box.outerHTML.length < 700) box = box.parentElement;
+      const chain = [];
+      for (let p = box; p && chain.length < 5; p = p.parentElement) chain.push(label(p));
+      console.log(`--- ${chain.join(" < ")}\n${box.outerHTML.replace(/\s+/g, " ").slice(0, 2500)}`);
+    }
+    const res = await extract(html, link, title).catch(() => null);
+    const out = res?.html.replace(/\s+/g, " ") ?? "";
+    const key = needle.startsWith("sel:") ? "" : needle;
+    const at = key ? out.indexOf(key) : -1;
+    console.log(`--- extracted (via=${res?.via}): ${at < 0 ? "not found" : out.slice(Math.max(0, at - 600), at + 900)}`);
+  }
 }
 
 // spec: "<範囲 0-9 か番号の並び 2,4,6> [1サイトあたりの記事数] [html]"

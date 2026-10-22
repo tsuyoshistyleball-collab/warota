@@ -25,6 +25,13 @@ if (url.startsWith("audit")) {
   process.exit(0);
 }
 
+// "snip 29.0 なんじぇい ;; 49.0 sel:.tab_area" なら、元ページの該当箇所のHTMLと抽出結果の同じ場所を出す
+if (url.startsWith("snip")) {
+  const { snip } = await import("./audit-articles.mjs");
+  await snip(url.slice(4));
+  process.exit(0);
+}
+
 // "feed <フィードURL> <キーワード>" 形式ならフィードから記事を探す
 if (url.startsWith("feed ")) {
   const [, feedUrl, ...kw] = url.split(/\s+/);
