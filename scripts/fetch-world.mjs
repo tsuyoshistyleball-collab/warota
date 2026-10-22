@@ -361,6 +361,19 @@ function printBigTopics(topics) {
   }
 }
 
+// 2つ以上の地域に入った話題と、記事ごとの地域の判定 (振り分けの確認)
+function printMultiRegion(topics) {
+  console.log("\n==== 複数の地域に入った話題 (振り分けの確認)");
+  const multi = topics.filter((t) => [...t.weights.values()].filter((w) => w >= MIN_REGION_WEIGHT).length > 1);
+  for (const t of multi.sort((a, b) => b.trend.score - a.trend.score).slice(0, 12)) {
+    const regions = [...t.weights].map(([r, w]) => `${r}:${w.toFixed(2)}`).join(" ");
+    console.log(`■ ${t.rep.t.slice(0, 40)} [${regions}]`);
+    for (const m of t.members.slice(0, 8)) {
+      const judged = m.regions.map((x) => (x.relevance < 1 ? `${x.region}:${x.relevance}` : x.region)).join(",");
+      console.log(`    ${m.outlet}: ${m.t.slice(0, 44)} → ${judged || "-"}`);
+    }
+  }
+}
 function printRanking(regions) {
   for (const r of regions) {
     console.log(`\n==== ${r.name} (heat ${r.heat}) ${r.items.length}件`);
@@ -408,6 +421,7 @@ export async function run({ probe = false, dryRun = false } = {}) {
   if (dryRun) {
     printBigTopics(topics);
     printRanking(regions);
+    printMultiRegion(topics);
     return;
   }
 
