@@ -16,27 +16,101 @@
 <body>
 <div id="ptr" aria-hidden="true"><span></span></div>
 
-<header id="header">
-  <div class="bar">
-    <h1>わろたんてな <span id="app-ver"></span></h1>
-    <div class="bar-actions">
-      <button id="btn-search" aria-label="検索" title="検索">🔍</button>
-      <button id="btn-refresh" aria-label="更新" title="更新">↻</button>
-      <button id="btn-settings" aria-label="設定" title="設定">⚙</button>
-    </div>
-  </div>
-  <div id="searchbar" hidden>
-    <input id="search" type="search" placeholder="タイトルを検索" autocomplete="off">
-  </div>
-  <nav id="tabs" aria-label="カテゴリ"></nav>
-</header>
+<section id="view-world" aria-label="世界のニュース">
+  <div id="w-main">
+    <header class="w-head">
+      <div class="w-title">
+        <h1>世界のニュース</h1>
+        <p id="w-updated">読み込み中…</p>
+      </div>
+      <button id="w-refresh" class="icon-btn" aria-label="更新" title="更新"></button>
+    </header>
 
-<main>
-  <p id="status" hidden></p>
-  <ul id="list"></ul>
-  <button id="more" hidden>もっと見る</button>
-  <p id="updated"></p>
-</main>
+    <div class="map-card">
+      <div id="map-stage" class="map-stage">
+        <svg id="world-map" class="map-svg" role="img" aria-label="世界地図。地域を選ぶと話題のニュースを表示します"></svg>
+        <div id="map-chips" class="map-chips"></div>
+        <button id="map-reset" class="map-reset" hidden></button>
+      </div>
+      <div class="map-foot">
+        <span class="legend" aria-hidden="true">落ち着き<i class="legend-bar"></i>話題沸騰</span>
+        <span class="map-tip">地域をタップ</span>
+      </div>
+    </div>
+
+    <p id="w-status" class="w-status" hidden></p>
+
+    <h2 class="w-section">地域ごとの話題</h2>
+    <div id="region-cards" class="region-cards" aria-busy="true">
+      <div class="rcard skeleton"></div>
+      <div class="rcard skeleton"></div>
+      <div class="rcard skeleton"></div>
+    </div>
+    <p class="w-credit">地図データ: Natural Earth</p>
+  </div>
+
+  <aside id="w-side" aria-label="地域のニュース" inert>
+    <section id="region-view" class="pane">
+      <header class="pane-head">
+        <button id="rv-back" class="icon-btn" aria-label="地図に戻る"></button>
+        <div class="pane-title">
+          <h2><i id="rv-dot" class="rdot"></i><span id="rv-name"></span></h2>
+          <p id="rv-sub"></p>
+        </div>
+      </header>
+      <div id="rv-scroll" class="pane-scroll">
+        <p id="rv-hint" class="rv-hint" hidden>いま一番話題の地域を表示しています。地図や一覧から地域を選べます</p>
+        <div id="rv-map" class="mini-map"></div>
+        <ol id="rv-list"></ol>
+      </div>
+    </section>
+    <section id="article-view" class="pane" aria-label="記事の要約">
+      <header class="pane-head">
+        <button id="av-back" class="icon-btn" aria-label="一覧に戻る"></button>
+        <p id="av-crumb" class="av-crumb"></p>
+        <button id="av-share" class="icon-btn" aria-label="共有" hidden></button>
+      </header>
+      <div id="av-scroll" class="pane-scroll">
+        <article id="av-body"></article>
+      </div>
+    </section>
+  </aside>
+</section>
+
+<section id="view-matome" hidden>
+  <header id="header">
+    <div class="bar">
+      <h1>わろたんてな <span id="app-ver"></span></h1>
+      <div class="bar-actions">
+        <button id="btn-search" aria-label="検索" title="検索">🔍</button>
+        <button id="btn-refresh" aria-label="更新" title="更新">↻</button>
+        <button id="btn-settings" aria-label="設定" title="設定">⚙</button>
+      </div>
+    </div>
+    <div id="searchbar" hidden>
+      <input id="search" type="search" placeholder="タイトルを検索" autocomplete="off">
+    </div>
+    <nav id="tabs" aria-label="カテゴリ"></nav>
+  </header>
+
+  <main>
+    <p id="status" hidden></p>
+    <ul id="list"></ul>
+    <button id="more" hidden>もっと見る</button>
+    <p id="updated"></p>
+  </main>
+</section>
+
+<nav id="tabbar" aria-label="画面の切り替え">
+  <a href="#/world" data-tab="world" aria-current="page">
+    <span class="tab-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.5 5.2 3.5 8.5s-1.1 6.2-3.5 8.5c-2.4-2.3-3.5-5.2-3.5-8.5S9.6 5.8 12 3.5z"/></svg></span>
+    <span>ワールド</span>
+  </a>
+  <a href="#/matome" data-tab="matome">
+    <span class="tab-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 12.5h8M8 16h5"/></svg></span>
+    <span>まとめ</span>
+  </a>
+</nav>
 
 <div id="reader" hidden>
   <div class="reader-bar">
@@ -79,5 +153,6 @@
 </div>
 
 <script src="./app.js"></script>
+<script src="./world.js"></script>
 </body>
 </html>

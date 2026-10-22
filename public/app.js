@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "1.6.1";
+const APP_VERSION = "2.0.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -437,8 +437,14 @@ $("btn-clear-read").onclick = () => {
   let startY = null;
   let pulled = false;
 
+  // 触った場所が一番上までスクロールされているか (ワールド画面の右側の一覧など、ページ以外のスクロールも見る)
+  const atTop = (el) => {
+    for (; el && el !== document.body; el = el.parentElement) if (el.scrollTop > 0) return false;
+    return window.scrollY === 0;
+  };
+
   window.addEventListener("touchstart", (e) => {
-    if (window.scrollY === 0 && modal.hidden && !readerOpen) {
+    if (atTop(e.target) && modal.hidden && !readerOpen && !window.World?.overlayOpen()) {
       startY = e.touches[0].clientY;
       pulled = false;
     } else {
@@ -461,7 +467,7 @@ $("btn-clear-read").onclick = () => {
   window.addEventListener("touchend", async () => {
     if (pulled) {
       ptr.classList.add("loading");
-      await loadData(true);
+      await (window.World?.isActive() ? window.World.refresh() : loadData(true));
       ptr.classList.remove("loading", "visible");
     } else {
       ptr.classList.remove("visible");

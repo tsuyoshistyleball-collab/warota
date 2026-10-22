@@ -1,3 +1,5 @@
 node_modules/
 public/data.json
 public/articles/
+public/world.json
+public/world-cache.json

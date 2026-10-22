@@ -26,6 +26,9 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      # 前回デプロイした分 (記事本文・世界ニュースの蓄積) を取りに行く公開URL
+      PAGES_BASE: https://tsuyoshistyleball-collab.github.io/warota
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -33,12 +36,14 @@ jobs:
           node-version: 20
       - name: Fetch feeds
         run: node scripts/fetch.mjs
+      # 世界ニュース (地域別の話題TOP10)。失敗してもまとめの更新は止めない
+      - name: Fetch world news
+        run: node scripts/fetch-world.mjs
+        continue-on-error: true
       - name: Install extractor deps
         run: npm install --no-save --no-package-lock --no-audit --no-fund linkedom @mozilla/readability
       - name: Build reader articles
         run: node scripts/build-articles.mjs
-        env:
-          PAGES_BASE: https://tsuyoshistyleball-collab.github.io/warota
       # debug-urls.txt にURLを書いておくと抽出診断がログに出る (メンテ用)
       - name: Debug extract
         if: ${{ hashFiles('debug-urls.txt') != '' }}

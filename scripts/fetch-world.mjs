@@ -112,6 +112,11 @@ function cleanSummary(text, title) {
     const cut = s.lastIndexOf("。", 220);
     s = cut > 80 ? s.slice(0, cut + 1) : `${s.slice(0, 200)}…`;
   }
+  // 配信元が文の途中で切った概要は、最後の文末までにする (短くなりすぎるなら「…」を付ける)
+  if (!/[。！？!?」』）)…]$/.test(s)) {
+    const cut = s.lastIndexOf("。");
+    s = cut >= 40 ? s.slice(0, cut + 1) : `${s}…`;
+  }
   return s;
 }
 
@@ -384,6 +389,8 @@ export async function run({ probe = false, dryRun = false } = {}) {
   for (const { feed, items, error } of results) {
     console.log(error ? `NG ${feed.name}: ${error}` : `OK ${feed.name}: ${items.length} items`);
   }
+  // 1つも取れないときは通信障害なので、空のランキングで上書きせず前回分を残す (呼び出し元で処理)
+  if (results.every((r) => r.error)) throw new Error("すべてのフィードの取得に失敗しました");
 
   const cache = await loadCache();
   const items = mergeItems(results, cache, feedsByName, now);
@@ -416,10 +423,23 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     await run({ probe: process.argv.includes("--probe"), dryRun: process.argv.includes("--dry-run") });
   } catch (err) {
-    // 世界ニュースの失敗でまとめ記事の更新まで止めないよう、空の結果を書いて正常終了する
+    // 世界ニュースの失敗でまとめ記事の更新まで止めないよう、前回公開した分を載せ直して正常終了する
+    // (前回分も取れなければ空の結果にする)
     console.error(`fetch-world failed: ${err?.stack ?? err}`);
     await mkdir(OUT_DIR, { recursive: true });
-    const regions = REGIONS.map(({ id, name }) => ({ id, name, heat: 0, items: [] }));
-    await writeFile(path.join(OUT_DIR, "world.json"), JSON.stringify({ updated: Date.now(), regions }));
+    for (const file of ["world.json", "world-cache.json"]) {
+      try {
+        if (!PAGES_BASE) throw new Error("PAGES_BASE が未設定");
+        const res = await fetch(`${PAGES_BASE}/${file}?t=${Date.now()}`, { signal: AbortSignal.timeout(FEED_TIMEOUT_MS) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await writeFile(path.join(OUT_DIR, file), await res.text());
+        console.log(`-> 前回の ${file} を載せ直しました`);
+      } catch (e) {
+        console.error(`前回の ${file} を取得できません (${errDetail(e)})`);
+        if (file !== "world.json") continue;
+        const regions = REGIONS.map(({ id, name }) => ({ id, name, heat: 0, items: [] }));
+        await writeFile(path.join(OUT_DIR, file), JSON.stringify({ updated: Date.now(), regions }));
+      }
+    }
   }
 }

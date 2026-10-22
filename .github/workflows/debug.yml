@@ -12,29 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  # 【開発用の一時ジョブ・デフォルトブランチに入れる前に削除する】
-  # 開発環境からニュースサイトに接続できないため、取得結果の world.json を作業ブランチに置く
-  world-sample:
-    if: github.event.inputs.url == 'world-sample'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: node scripts/fetch-world.mjs
-      - run: |
-          mkdir -p dev && cp public/world.json dev/world-sample.json
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dev/world-sample.json
-          git commit -m "開発用: 実データの world.json サンプル"
-          git push
-
   debug-extract:
-    if: github.event.inputs.url != 'world-sample'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

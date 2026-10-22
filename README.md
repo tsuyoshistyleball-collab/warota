@@ -1,11 +1,13 @@
 # 📡 わろたんてな
 
-5ちゃんねるまとめサイトの新着記事を1画面に集める、**自分用まとめアンテナ**([ワロタあんてな](https://matomeantena.com/) 風)。
+世界の話題ニュースと、5ちゃんねるまとめサイトの新着記事を集める**自分用ニュースアプリ**。
 
-- 📱 **スマホ最適化 + PWA** — ホーム画面に追加すればアプリとして使える
+- 🌏 **ワールド** — 世界地図から地域を選ぶと、いま話題のニュースTOP10。見出しをタップすると最初に要約を表示
+- 📰 **まとめ** — まとめサイトの新着を1画面に集めるアンテナ([ワロタあんてな](https://matomeantena.com/) 風)
+- 📱 **スマホ最適化 + PWA** — ホーム画面に追加すればアプリとして使える。Galaxy Z Fold などの折りたたみスマホは、開くと左に地図・右にニュースの2画面表示
 - 🚫 **広告なし** — このアプリ自体には広告が一切ない(記事タップで開く元サイト側の広告は元サイト次第)
 - 💰 **完全無料・サーバー不要** — GitHub Actions が30分ごとに RSS を取得し、GitHub Pages で配信
-- 🌙 ダークモード自動対応 / プルリフレッシュ / 検索 / NGワード / サイト別表示切替 / 既読管理
+- プルリフレッシュ / 検索 / NGワード / サイト別表示切替 / 既読管理
 
 ## セットアップ
 
@@ -24,6 +26,22 @@
 - **Android (Chrome)**: ページを開く → メニュー(⋮) → **「ホーム画面に追加」** または「アプリをインストール」
 
 ## 使い方
+
+画面下のタブで **ワールド** と **まとめ** を切り替えます。
+
+### ワールド
+
+| 操作 | 機能 |
+|---|---|
+| 地図の地域・地域カードをタップ | その地域の話題のニュースTOP10 |
+| 見出しをタップ | 要約 → 元記事へのリンク → 同じニュースを伝えた他のメディア の順に表示 |
+| 地図の色 | 話題の盛り上がり(薄い=落ち着き、濃いオレンジ=話題沸騰) |
+| ↻ / 下に引っ張る | 手動更新(5分ごとに自動更新もされます) |
+
+話題の順位は「同じ出来事を何社が報じたか」「Yahoo!トピックスやアクセスランキングに入ったか」「新しさ」から計算します。
+要約は各報道機関が配信している記事の概要(RSS・ページの説明文)です。
+
+### まとめ
 
 | 操作 | 機能 |
 |---|---|
@@ -45,6 +63,16 @@
 - カテゴリは自由文字列。同じ文字列同士が1つのタブにまとまります
 - 取得に失敗したサイトは自動でスキップされます(Actions のログで確認可能)
 
+ワールドのニュース元は [`world-feeds.json`](world-feeds.json) です。
+
+```json
+{ "name": "NHK 国際", "url": "https://...", "kind": "world", "role": "content", "outlet": "NHK" }
+```
+
+- `kind`: `world`(海外のニュース)/ `mixed`(国内外が混在)/ `japan`(国内のニュース)
+- `role`: `content`(要約・画像を使う記事)/ `signal`(話題度の判定だけに使う見出し)
+- 地域の判定に使う国名・地名は [`scripts/world-regions.mjs`](scripts/world-regions.mjs) にあります
+
 ## 更新頻度を変える
 
 [`.github/workflows/update.yml`](.github/workflows/update.yml) の `cron` を編集します(UTC表記)。
@@ -53,8 +81,18 @@
 ## ローカルでの開発
 
 ```sh
-npm run fetch   # feeds.json から public/data.json を生成
-npm run serve   # http://localhost:3000 でプレビュー
+npm run fetch        # feeds.json から public/data.json を生成
+npm run fetch:world  # world-feeds.json から public/world.json を生成
+npm run serve        # http://localhost:3000 でプレビュー
+npm test             # 地域の判定・話題のまとめ方のテスト
+```
+
+世界地図のデータ `public/world-map.json` は [Natural Earth](https://www.naturalearthdata.com/)(パブリックドメイン)から作っています。
+地域の分け方や色を塗る範囲を変えたときは、次のコマンドで作り直します。
+
+```sh
+npm install --no-save --no-package-lock d3-geo topojson-client world-atlas
+node scripts/build-map.mjs
 ```
 
 アイコンの元画像は [`assets/icon-source.png`](assets/icon-source.png)。差し替える場合はここから
@@ -64,9 +102,12 @@ npm run serve   # http://localhost:3000 でプレビュー
 
 ```
 GitHub Actions (30分ごと)
-  └─ scripts/fetch.mjs が feeds.json の各RSSを取得・整形
-       └─ public/data.json を生成 → GitHub Pages にデプロイ
-            └─ スマホの PWA (public/) が data.json を表示
+  ├─ scripts/fetch.mjs が feeds.json の各RSSを取得・整形 → public/data.json
+  └─ scripts/fetch-world.mjs が world-feeds.json の各RSSを取得
+       ├─ 見出しの国名・地名から地域を判定
+       ├─ 同じ出来事を伝える記事を1つの話題にまとめ、話題度で順位付け
+       └─ public/world.json (地域ごとのTOP10) → GitHub Pages にデプロイ
+            └─ スマホの PWA (public/) が data.json / world.json を表示
 ```
 
-依存パッケージゼロ(Node.js 標準機能のみ)。記事データは直近7日分・最大1000件を保持します。
+依存パッケージゼロ(Node.js 標準機能のみ)。まとめは直近7日分・最大1000件、ワールドは直近7日分の記事から話題を選びます。

@@ -1,14 +1,17 @@
-const CACHE = "warota-v5";
+const CACHE = "warota-v6";
 const SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./world.js",
+  "./world-map.json",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
   "./apple-touch-icon.png",
 ];
+const DATA_FILES = ["data.json", "world.json"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -30,19 +33,20 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
 
-  const isData = url.pathname.endsWith("/data.json");
+  // 記事データ (data.json / world.json) は ?t= 付きで取りに来るので、キャッシュはファイル名だけで持つ
+  const dataFile = DATA_FILES.find((f) => url.pathname.endsWith(`/${f}`));
+  const key = dataFile ? `./${dataFile}` : e.request;
   e.respondWith(
-    fetch(e.request, { cache: isData ? "no-store" : "no-cache" })
+    fetch(e.request, { cache: dataFile ? "no-store" : "no-cache" })
       .then((res) => {
         if (res.ok) {
           const copy = res.clone();
-          const key = isData ? "./data.json" : e.request;
           caches.open(CACHE).then((c) => c.put(key, copy));
         }
         return res;
       })
       .catch(() =>
-        caches.match(isData ? "./data.json" : e.request).then((cached) => {
+        caches.match(key).then((cached) => {
           if (cached) return cached;
           throw new Error("offline");
         })
