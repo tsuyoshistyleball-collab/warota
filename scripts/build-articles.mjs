@@ -622,8 +622,8 @@ function removeLinkRuns(root, ctx) {
   const promoAnchor = (node) => {
     if (node.nodeType !== 1) return false;
     let a = node;
-    // <b><a>…</a></b> のように、リンク1本だけを包んだ飾り
-    while (a.tagName !== "A" && /^(B|STRONG|SPAN|FONT|EM|U)$/.test(a.tagName) && a.children.length === 1 &&
+    // <b><a>…</a></b> や <div><span><a>…</a></span></div> のように、リンク1本だけを包んだ飾り・入れ物
+    while (a.tagName !== "A" && /^(B|STRONG|SPAN|FONT|EM|U|DIV|P|LI)$/.test(a.tagName) && a.children.length === 1 &&
       flatText(a.textContent) === flatText(a.firstElementChild.textContent)) a = a.firstElementChild;
     return a.tagName === "A" && isPromoLink(a, ctx) && flatText(a.textContent).length >= 8;
   };
@@ -632,7 +632,16 @@ function removeLinkRuns(root, ctx) {
     let run = [];
     let count = 0;
     const flush = () => {
-      if (count >= 3) for (const n of run) n.remove();
+      if (count >= 3) {
+        for (const n of run) n.remove();
+        // 列だけが入っていた入れ物は、前にある見出し (「🔥 今読まれている注目ニュース」など) ごと除く
+        if (box !== root && !box.textContent.trim() && !box.querySelector("img, video")) {
+          const label = prevContent(box);
+          const t = label && !isHead(label) ? label.textContent.replace(/\s+/g, " ").trim() : "";
+          if (t && t.length <= 30 && countPosts(t) === 0 && (PROMO_START_RE.test(t) || LABEL_RE.test(t))) label.remove();
+          box.remove();
+        }
+      }
       run = [];
       count = 0;
     };

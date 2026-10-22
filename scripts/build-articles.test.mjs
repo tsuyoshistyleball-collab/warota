@@ -334,3 +334,15 @@ test("エレファント速報: ページの中の切り替え (javascript:) だ
   );
   assert.ok(!textOf(html).includes("「すべて」") && textOf(html).includes("元スレ"));
 });
+
+test("なんJスタジアム: 1本ずつ <div> に入って並んだアンテナサイトのリンクも除く", { skip }, async () => {
+  const list = [
+    "https://matomeantena.com/feed/30000108204433",
+    "https://nullpoantenna.com/feed/30000089669073",
+    "https://nullpoantenna.com/feed/30000089672592",
+    "https://moudamepo.com/pick.cgi?code=1165&date=1792373035",
+  ].map((h, i) => `<div><span style="font-size:125%"><b><span class="text"><a href="${h}"><span style="color:#06c">アンテナの記事のタイトルその${i}です</span></a></span></b></span></div>`).join("");
+  const html = await run(`<div class="article-body-inner">${posts(4)}<div class="article-body-more">${posts(3, 5)}${list}</div></div>`);
+  assert.ok(!textOf(html).includes("アンテナの記事"), textOf(html).slice(-200));
+  assert.equal((textOf(html).match(/ID:abc/g) ?? []).length, 7);
+});
