@@ -41,18 +41,26 @@ const WEAK_WORDS = [
 ];
 const WEAK_TERMS = new Set(WEAK_WORDS.flatMap((w) => [...terms(w).keys()]));
 
-// 見出しから比較用の語を取り出す
-export function terms(title) {
+// 見出しを語に分け、語ごとに比較用の語片の配列を返す。
+// 漢字の連なりは2文字ずつの組にする (「子吉川」→「子吉」「吉川」。表記ゆれや送り仮名の違いに強い)
+function words(title) {
   let s = title.normalize("NFKC").replace(/^(?:【[^】]{1,12}】\s*)+/, "");
   for (const [re, to] of SPELLINGS) s = s.replace(re, to);
-  const out = new Map();
-  const add = (t, w = 1) => out.set(t, (out.get(t) ?? 0) + w);
-  for (const [w] of s.matchAll(/[ァ-ヺー]{2,}/g)) add(w); // カタカナ語 (「キム・ヨジョン」は「キム」「ヨジョン」)
-  for (const [w] of s.matchAll(/[A-Za-z][A-Za-z0-9]+/g)) add(w.toUpperCase()); // PHP, FBI, AI
-  for (const [w] of s.matchAll(/\d+(?:\.\d+)?(?:号|人|件|割|%|億|万|兆|円|ドル|歳|年|位)/g)) add(w); // 30号, 7割
+  const out = [];
+  for (const [w] of s.matchAll(/[ァ-ヺー]{2,}/g)) out.push([w]); // カタカナ語 (「キム・ヨジョン」は「キム」「ヨジョン」)
+  for (const [w] of s.matchAll(/[A-Za-z][A-Za-z0-9]+/g)) out.push([w.toUpperCase()]); // PHP, FBI, AI
+  for (const [w] of s.matchAll(/\d+(?:\.\d+)?(?:号|人|件|割|%|億|万|兆|円|ドル|歳|年|位)/g)) out.push([w]); // 30号, 7割
   for (const [run] of s.matchAll(/\p{Script=Han}+/gu)) {
-    if (run.length === 1) add(run, 0.5); // 「北」「露」など1文字は弱めに
-    else for (let i = 0; i < run.length - 1; i++) add(run.slice(i, i + 2));
+    out.push(run.length === 1 ? [run] : Array.from({ length: run.length - 1 }, (_, i) => run.slice(i, i + 2)));
+  }
+  return out;
+}
+
+// 見出しから比較用の語片と重みを取り出す
+export function terms(title) {
+  const out = new Map();
+  for (const word of words(title)) {
+    for (const t of word) out.set(t, (out.get(t) ?? 0) + (t.length === 1 ? 0.5 : 1)); // 「北」「露」など1文字は弱めに
   }
   return out;
 }
@@ -65,7 +73,7 @@ function vectorize(items) {
   const idf = (k) => Math.log((n + 1) / ((df.get(k) ?? 0) + 1)) + 1;
   // 多くの記事に出る語 (「大統」「政府」など) は候補探しの索引に使わない
   const tooCommon = Math.max(8, n * 0.03);
-  return grams.map((g) => {
+  return grams.map((g, i) => {
     const vec = new Map();
     let norm = 0;
     for (const [k, tf] of g) {
@@ -77,15 +85,18 @@ function vectorize(items) {
     norm = Math.sqrt(norm) || 1;
     for (const [k, w] of vec) vec.set(k, w / norm);
     const keys = [...g.keys()].filter((k) => df.get(k) > 1 && df.get(k) <= tooCommon);
-    // 話題を特定する手がかりになる語 (よく出る語でも1文字でもないもの)
-    const strong = [...g.keys()].filter((k) => k.length > 1 && !WEAK_TERMS.has(k));
+    // 話題を特定する手がかりになる語 (よく出る語でも1文字でもないもの)。語ごとにまとめておき、
+    // 「拘禁刑」の「拘禁」「禁刑」のような1つの熟語の語片は、一致しても1語と数える
+    const strong = words(items[i].title)
+      .map((w) => w.filter((k) => k.length > 1 && !WEAK_TERMS.has(k)))
+      .filter((w) => w.length > 0);
     return { vec, keys, strong };
   });
 }
 
 // 同じ話題とみなすのに必要な、共通する手がかり語の数。
-// 実際の同じニュースは「子吉・吉川・氾濫」のように複数を共有し、別のニュースの誤一致は1語だけのことが多い
-const MIN_SHARED_TERMS = 2;
+// 実際の同じニュースは「子吉川・氾濫」のように複数を共有し、別のニュースの誤一致は1語だけのことが多い
+const MIN_SHARED_WORDS = 2;
 
 function cosine(a, b) {
   let s = 0;
@@ -117,7 +128,7 @@ export function clusterItems(items) {
       const cl = clusters[c];
       if (cl.newest - item.ts > MAX_GAP_MS) continue;
       if (geo.size && cl.geo.size && ![...geo].some((r) => cl.geo.has(r))) continue;
-      if (strong.filter((k) => cl.sum.has(k)).length < MIN_SHARED_TERMS) continue;
+      if (strong.filter((w) => w.some((k) => cl.sum.has(k))).length < MIN_SHARED_WORDS) continue;
       const dot = cosine(vec, cl.sum);
       const sim = dot / Math.sqrt(cl.norm2);
       if (sim >= bestSim) {
