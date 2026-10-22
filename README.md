@@ -98,7 +98,7 @@
 npm run fetch        # feeds.json から public/data.json を生成
 npm run fetch:world  # world-feeds.json から public/world.json を生成
 npm run serve        # http://localhost:3000 でプレビュー
-npm test             # 地域の判定・話題のまとめ方のテスト
+npm test             # 地域の判定・話題のまとめ方・まとめ記事の本文の取り出し方のテスト
 ```
 
 世界地図のデータ `public/world-map.json` は [Natural Earth](https://www.naturalearthdata.com/)(パブリックドメイン)から作っています。
@@ -117,6 +117,7 @@ node scripts/build-map.mjs
 ```
 GitHub Actions (30分ごと)
   ├─ scripts/fetch.mjs が feeds.json の各RSSを取得・整形 → public/data.json
+  ├─ scripts/build-articles.mjs がまとめ記事の本文を取り出し、広告・宣伝・コメント欄を除く → public/articles/
   └─ scripts/fetch-world.mjs が world-feeds.json の各RSSを取得
        ├─ 見出しの国名・地名から地域を判定
        ├─ 同じ出来事を伝える記事を1つの話題にまとめ、話題度で順位付け
@@ -124,4 +125,17 @@ GitHub Actions (30分ごと)
             └─ スマホの PWA (public/) が data.json / world.json を表示
 ```
 
-依存パッケージゼロ(Node.js 標準機能のみ)。まとめは直近7日分・最大1000件、ワールドは直近7日分の記事から話題を選びます。
+依存パッケージゼロ(Node.js 標準機能のみ。記事の本文の取り出しだけは、ワークフローの中で linkedom と @mozilla/readability を入れて使います)。
+まとめは直近7日分・最大1000件、ワールドは直近7日分の記事から話題を選びます。
+
+### 記事の本文の取り出しを点検する
+
+アプリ内で開いたまとめ記事に広告や関係のない文字が混ざるときは、GitHub の Actions から `debug` ワークフローを手動で実行して調べます。
+
+| 入力 | 調べる内容 |
+| --- | --- |
+| `audit 0-9 2 brief` | 0〜9番目のサイトの最新2記事ずつ、本文の量と、残っていそうな宣伝の言葉の前後 |
+| `audit 2,5 1 html` | 指定したサイトについて、取り出したHTMLの最初と最後まで |
+| `snip 29.0 なんじぇい` | 29番目のサイトの最新記事で、その文字が元のページでどう書かれているか |
+
+サイトの番号は `feeds.json` の並び順(0から)です。
