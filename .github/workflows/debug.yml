@@ -28,6 +28,8 @@ jobs:
         env:
           BASE: ${{ github.event.inputs.base }}
         run: |
-          git fetch --no-tags --depth=1 origin "$BASE"
-          git show FETCH_HEAD:scripts/build-articles.mjs > scripts/build-articles.base.mjs
+          # ブランチ名か、このブランチの最近のコミット (短い番号でもよい)
+          git fetch --no-tags --depth=100 origin "$GITHUB_REF"
+          if git fetch --no-tags --depth=1 origin "$BASE" 2>/dev/null; then REV=FETCH_HEAD; else REV="$BASE"; fi
+          git show "$REV:scripts/build-articles.mjs" > scripts/build-articles.base.mjs
       - run: node scripts/debug-extract.mjs "${{ github.event.inputs.url }}"
