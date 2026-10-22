@@ -9,6 +9,9 @@ import { parseFeed } from "./feedparser.mjs";
 import { fetchTextWithFallback } from "./fetchtext.mjs";
 import { extract } from "./build-articles.mjs";
 
+// 比べる前の版の抽出 (debug ワークフローの base に指定した版の build-articles.mjs)。あれば簡易表示で抽出結果の違いを出す
+const base = await import("./build-articles.base.mjs").catch(() => null);
+
 const clip = (s, n) => {
   const t = (s ?? "").replace(/\s+/g, " ").trim();
   return t.length > n ? `${t.slice(0, n)}…` : t;
@@ -115,6 +118,40 @@ function suspects(text) {
   return out;
 }
 
+// 抽出したHTMLを行に分ける (改行・段落などの区切りで)
+const linesOf = (html) =>
+  html
+    .replace(/<(br|\/?(p|div|li|ul|ol|dl|dt|dd|h[1-6]|blockquote|table|tr|section|article|figure))\b[^>]*>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&[a-z]+;/g, " ")
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+// 前の版との違い: 前の版にだけあった行 (消えた行) と、今の版にだけある行
+function diffLines(oldHtml, newHtml) {
+  const rest = (from, other) => {
+    const left = new Map();
+    for (const l of other) left.set(l, (left.get(l) ?? 0) + 1);
+    return from.filter((l) => {
+      const n = left.get(l) ?? 0;
+      if (n > 0) left.set(l, n - 1);
+      return n === 0;
+    });
+  };
+  const a = linesOf(oldHtml);
+  const b = linesOf(newHtml);
+  const gone = rest(a, b);
+  const added = rest(b, a);
+  const size = (ls) => ls.reduce((n, l) => n + l.length, 0);
+  if (gone.length === 0 && added.length === 0) return ["    base: 同じ"];
+  return [
+    `    base: 消えた行 ${gone.length} (${size(gone)}字) / 増えた行 ${added.length} (${size(added)}字)`,
+    ...gone.slice(0, 8).map((l) => `      - ${clip(l, 70)}`),
+    ...added.slice(0, 4).map((l) => `      + ${clip(l, 70)}`),
+  ];
+}
+
 // 簡易表示: 本文の量・最初と最後のまとまり・怪しい言葉の前後
 async function briefArticle(site, item) {
   const lines = [`--- [${site.name}] ${clip(item.title, 50)} ${item.link}`];
@@ -133,6 +170,10 @@ async function briefArticle(site, item) {
   const show = total <= 6 ? rows : [...rows.slice(0, 3), `… (${total - 6} more)`, ...rows.slice(-3)];
   for (const r of show) lines.push(`      ${r}`);
   for (const s of suspects(text)) lines.push(`    ? ${s}`);
+  if (base) {
+    const old = await base.extract(html, item.link, item.title).catch(() => null);
+    lines.push(...diffLines(old?.html ?? "", res.html));
+  }
   return lines;
 }
 
