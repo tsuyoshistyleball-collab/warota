@@ -485,7 +485,7 @@ html[data-view="world"] body { background: var(--surface); }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: calc(14px + env(safe-area-inset-top)) 2px 12px 6px;
+  padding: calc(14px + env(safe-area-inset-top)) 14px 12px 18px;
 }
 .w-title { flex: 1; min-width: 0; }
 .w-title h1 {
@@ -528,35 +528,31 @@ html[data-view="world"] body { background: var(--surface); }
 .w-head .icon-btn { background: var(--card); box-shadow: var(--shadow-sm); }
 #w-refresh.spinning svg { animation: spin .9s linear infinite; }
 
-/* 地図 */
-.map-card {
-  padding: 6px;
-  border-radius: 24px;
-  background: var(--card);
-  box-shadow: var(--shadow-md);
-}
+/* 地図 (画面の幅いっぱい。指で動かし、2本指で拡大縮小する) */
 .map-stage {
   position: relative;
-  aspect-ratio: 1000 / 426.4;
-  border-radius: 18px;
+  height: clamp(220px, 30dvh, 340px);
   overflow: hidden;
-  background: radial-gradient(120% 90% at 50% 0%, #f8fafc 0%, #eef2f7 70%, #e7edf4 100%);
+  background: #dfe9f4; /* 地図の外側も海の色にして、図法の縁を目立たせない */
   container-type: inline-size;
   isolation: isolate;
+  touch-action: none; /* 指の操作はページのスクロールではなく地図の移動に使う */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
 }
+.map-stage:active { cursor: grabbing; }
 .map-svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
-  touch-action: manipulation;
-  transition: background-color .5s;
 }
-/* 地域に寄せたときは地図の外側も海の色にして、図法の縁 (大西洋の切れ目) を見せない */
-.map-svg.has-sel { background-color: #dfe9f4; }
-.has-sel .m-sphere { stroke: none; }
-.m-sphere { stroke: rgba(36, 74, 120, .16); stroke-width: 1; vector-effect: non-scaling-stroke; }
+/* 動かしている間は影を省いて、描き直しを軽くする */
+.map-svg.moving .m-land,
+.map-svg.animating .m-land { filter: none; }
+.m-sphere { stroke: none; }
 .m-grat {
   fill: none;
   stroke: rgba(54, 98, 150, .13);
@@ -616,6 +612,7 @@ html[data-view="world"] body { background: var(--surface); }
 .chip {
   position: absolute;
   transform: translate(-50%, -50%);
+  -webkit-user-drag: none;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -668,8 +665,8 @@ html[data-view="world"] body { background: var(--surface); }
   0% { transform: scale(.5); opacity: .9; }
   80%, 100% { transform: scale(1.7); opacity: 0; }
 }
-/* 小さい地図では件数を省いて地域名を詰める (重ならないように) */
-@container (max-width: 480px) {
+/* 幅の狭い地図では件数を省いて地域名を詰める (重ならないように) */
+@container (max-width: 360px) {
   .chip { gap: 4px; padding: 3px 7px 3px 5px; font-size: 10.5px; }
   .chip b { display: none; }
   .chip-dot { width: 7px; height: 7px; }
@@ -677,8 +674,8 @@ html[data-view="world"] body { background: var(--surface); }
 
 .map-reset {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -700,18 +697,79 @@ html[data-view="world"] body { background: var(--surface); }
   stroke: currentColor;
   stroke-width: 1.8;
 }
-.map-foot {
-  display: flex;
+.map-legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 10px 5px;
-  font-size: 11px;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .9);
+  box-shadow: 0 1px 4px rgba(16, 24, 40, .12);
   color: var(--fg-dim);
+  font-size: 10.5px;
+  font-weight: 600;
+  pointer-events: none;
 }
-.legend { display: inline-flex; align-items: center; gap: 7px; }
+.map-zoom {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .95);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .14), 0 3px 10px rgba(16, 24, 40, .1);
+}
+.map-zoom button {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.map-zoom button + button { border-top: 1px solid var(--line); }
+.map-zoom button:active { background: rgba(16, 24, 40, .07); }
+.map-zoom button:disabled { color: #c3c3cb; cursor: default; }
+.map-zoom svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+/* 使い方の案内 (一度地図を動かしたら出さない) */
+.map-hint {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  z-index: 2;
+  margin: 0;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: rgba(26, 26, 36, .8);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+  transition: opacity .4s;
+}
+.map-hint.gone { opacity: 0; }
 .legend-bar {
-  width: 76px;
+  width: 64px;
   height: 7px;
   border-radius: 4px;
   background: linear-gradient(90deg, var(--heat-0), var(--heat-1) 25%, var(--heat-2) 50%, var(--heat-3) 75%, var(--heat-4));
@@ -1205,18 +1263,36 @@ html[data-view="world"] body { background: var(--surface); }
   #view-world {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: start;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "head head" "map map" "main side";
+    height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom));
     max-width: 1320px;
     margin: 0 auto;
   }
-  #w-main { padding: 0 18px calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom)); }
+  #w-home { display: contents; }
+  .w-head { grid-area: head; padding: calc(10px + env(safe-area-inset-top)) 14px 10px 20px; }
+  .w-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+  .w-title h1 { font-size: 21px; }
+  .w-title p { margin: 0; }
+  /* 地図は画面の上3分の1ほどを、左右の画面にまたがって使う */
+  .map-card { grid-area: map; }
+  .map-stage { height: clamp(220px, 32dvh, 520px); }
+  #w-main {
+    grid-area: main;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 16px 24px;
+  }
+  #w-main .w-section { margin-top: 18px; }
   #w-side {
-    position: sticky;
-    top: 0;
-    height: calc(100dvh - var(--tabbar-h) - env(safe-area-inset-bottom));
+    grid-area: side;
+    position: relative;
+    min-height: 0;
     border-left: 1px solid var(--line);
   }
   .mini-map { display: none; }
+  .av-hero { aspect-ratio: 5 / 2; }
 }
 /* 画面が物理的に2枚に分かれている端末では、境目に合わせて分ける */
 @media (min-width: 600px) and (horizontal-viewport-segments: 2) {

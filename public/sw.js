@@ -1,4 +1,4 @@
-const CACHE = "warota-v6";
+const CACHE = "warota-v7";
 const SHELL = [
   "./",
   "./index.html",

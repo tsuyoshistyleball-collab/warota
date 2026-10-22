@@ -9,6 +9,8 @@
   const AUTO_REFRESH_MS = 5 * 60 * 1000;
   const READ_MAX = 500;
   const PIN_PX = 3.5; // 日本の位置を示す点の半径 (画面上の大きさ。地図を拡大しても変えない)
+  const MIN_VIEW_W = 70; // いちばん拡大したときに見える幅 (地図全体の幅は 1000)
+  const ZOOM_STEP = 1.7; // 拡大・縮小ボタン1回の倍率
   // 話題の盛り上がり (0〜1) を表す1色の濃淡。明るさが単調に変わることを検証済みの5段階を補間する
   const HEAT_RAMP = ["#f7eee9", "#f5cfb6", "#f4b082", "#ec8f4a", "#e07100"];
   // 色だけに頼らず、盛り上がりを言葉でも示す
@@ -32,6 +34,8 @@
     spark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
     reset: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.3 3.5 5.2 3.5 8.5s-1.1 6.2-3.5 8.5c-2.4-2.3-3.5-5.2-3.5-8.5S9.6 5.8 12 3.5z"/></svg>',
     refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/></svg>',
+    plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+    minus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>',
   };
 
   const wide = matchMedia("(min-width: 600px)");
@@ -163,7 +167,7 @@
     svg.append(svgEl("line", { x1: px, y1: py, x2: lx, y2: ly, class: "m-leader" }));
     const pin = svgEl("circle", { cx: px, cy: py, r: 2.6, class: "m-pin" });
     svg.append(pin);
-    return { svg, regions, pin, vb: mapData.viewBox.slice(), width: 0, anim: 0, chips: new Map(), region: null };
+    return { svg, regions, pin, vb: mapData.viewBox.slice(), size: [0, 0], anim: 0, frame: 0, chips: new Map(), region: null };
   }
 
   function paintMap(m, selected) {
@@ -174,32 +178,66 @@
     m.svg.classList.toggle("has-sel", !!selected);
   }
 
-  // 拡大範囲 [x0,y0,x1,y1] を、表示枠の縦横比に合わせた viewBox [x,y,w,h] にする
-  function fitBox([x0, y0, x1, y1], aspect, pad) {
-    let w = (x1 - x0) * (1 + pad);
-    let hgt = (y1 - y0) * (1 + pad);
-    if (w / hgt > aspect) hgt = w / aspect;
-    else w = hgt * aspect;
-    return [(x0 + x1) / 2 - w / 2, (y0 + y1) / 2 - hgt / 2, w, hgt];
+  // 表示枠の大きさ (画面上のピクセル) と、地図に重なっているボタン類の位置を測る。隠れていて測れないときは前の値のまま
+  function measure(m) {
+    const r = m.svg.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    m.size = [r.width, r.height];
+    m.covers = [...(m.overlays ?? [])]
+      .map((el) => el.getBoundingClientRect())
+      .filter((c) => c.width)
+      .map((c) => [c.left - r.left, c.top - r.top, c.right - r.left, c.bottom - r.top]);
+  }
+  const aspectOf = (m) => (m.size[0] ? m.size[0] / m.size[1] : mapData.viewBox[2] / mapData.viewBox[3]);
+
+  // 見える範囲の幅の限度 [最小, 最大]。いちばん引いたときも地図が枠いっぱいに広がり、地図の端の外は見せない
+  function widthLimits(m) {
+    const [, , bw, bh] = mapData.viewBox;
+    const max = Math.min(bw, bh * aspectOf(m));
+    return [Math.min(MIN_VIEW_W, max), max];
   }
 
-  // region を指定すればその地域へ、null なら世界全体へ寄せる
-  function zoomMap(m, region, animate = true) {
-    const { width, height } = m.svg.getBoundingClientRect();
-    if (width) m.width = width;
-    const [x, y, w, hgt] = mapData.viewBox;
-    const aspect = width && height ? width / height : w / hgt;
-    const target = region ? fitBox(mapData.boxes[region], aspect, 0.14) : fitBox([x, y, x + w, y + hgt], aspect, 0);
+  // 範囲 [x,y,w,h] が収まるように、枠の縦横比・拡大の限度・地図の外に出ない位置に合わせた viewBox を返す
+  function clampView(m, [x, y, w, h]) {
+    const [bx, by, bw, bh] = mapData.viewBox;
+    const aspect = aspectOf(m);
+    const [minW, maxW] = widthLimits(m);
+    const nw = Math.min(maxW, Math.max(minW, w, h * aspect));
+    const nh = nw / aspect;
+    const nx = Math.min(bx + bw - nw, Math.max(bx, x + w / 2 - nw / 2));
+    const ny = Math.min(by + bh - nh, Math.max(by, y + h / 2 - nh / 2));
+    return [nx, ny, nw, nh];
+  }
+  // 最初に見せる範囲: いちばん引いた大きさで、地図の中央 (日本が真ん中の図法) に置く
+  const homeView = (m) => clampView(m, mapData.viewBox);
+  // 地域を選んだときの範囲 (地域の拡大範囲 [x0,y0,x1,y1] に少し余白を付ける)
+  function regionView(m, id) {
+    const [x0, y0, x1, y1] = mapData.boxes[id];
+    const [w, hgt] = [x1 - x0, y1 - y0];
+    return clampView(m, [x0 - w * 0.07, y0 - hgt * 0.07, w * 1.14, hgt * 1.14]);
+  }
+  // 枠の中の点 (fx, fy: 枠に対する 0〜1 の位置) を動かさずに、見える範囲を k 倍にする
+  function zoomAround(m, k, fx = 0.5, fy = 0.5) {
+    const [x, y, w, hgt] = m.vb;
+    const [minW, maxW] = widthLimits(m);
+    const nw = Math.min(maxW, Math.max(minW, w * k));
+    const nh = nw / aspectOf(m);
+    return clampView(m, [x + fx * (w - nw), y + fy * (hgt - nh), nw, nh]);
+  }
+
+  function setView(m, vb) {
+    m.vb = vb;
+    m.svg.setAttribute("viewBox", vb.map((v) => v.toFixed(2)).join(" "));
+    placeChips(m);
+    m.onView?.();
+  }
+
+  // 範囲 target へ動かす (animate なら 0.56 秒かけて滑らかに)
+  function flyTo(m, target, animate = true) {
     cancelAnimationFrame(m.anim);
     m.svg.classList.remove("animating");
-    if (target.every((v, i) => Math.abs(v - m.vb[i]) < 0.05)) {
-      placeChips(m);
-      return;
-    }
-    if (!animate || reducedMotion.matches) {
-      m.vb = target;
-      m.svg.setAttribute("viewBox", target.join(" "));
-      placeChips(m);
+    if (!animate || reducedMotion.matches || target.every((v, i) => Math.abs(v - m.vb[i]) < 0.05)) {
+      setView(m, target);
       return;
     }
     const from = m.vb.slice();
@@ -208,27 +246,183 @@
     const step = (now) => {
       const t = Math.min(1, (now - start) / 560);
       const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
-      m.vb = from.map((v, i) => v + (target[i] - v) * e);
-      m.svg.setAttribute("viewBox", m.vb.join(" "));
-      placeChips(m);
+      setView(m, from.map((v, i) => v + (target[i] - v) * e));
       if (t < 1) m.anim = requestAnimationFrame(step);
       else m.svg.classList.remove("animating");
     };
     m.anim = requestAnimationFrame(step);
   }
 
-  // 地図上の地域名チップ (HTML) を、SVG上のラベル位置に合わせて置く
+  // region を指定すればその地域へ、null なら世界全体へ寄せる
+  function zoomMap(m, region, animate = true) {
+    measure(m);
+    flyTo(m, region ? regionView(m, region) : homeView(m), animate);
+  }
+
+  // 指 (マウス) で地図を動かし、2本指 (ホイール) で拡大縮小する。
+  // 動かし終わった直後のクリックは、指を離した位置の地域を選んだことにしない
+  function enableGestures(m, stage, onMove) {
+    const pts = new Map(); // 画面に触れている指 (pointerId → 位置)
+    let base = null; // 触れたときの {vb, rect, cx, cy, d}
+    let moved = false;
+    let quietUntil = 0;
+    const center = () => {
+      const ps = [...pts.values()];
+      return {
+        cx: ps.reduce((n, p) => n + p.x, 0) / ps.length,
+        cy: ps.reduce((n, p) => n + p.y, 0) / ps.length,
+        d: ps.length > 1 ? Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y) : 0,
+      };
+    };
+    const rebase = () => {
+      base = { vb: m.vb.slice(), rect: stage.getBoundingClientRect(), ...center() };
+    };
+
+    stage.addEventListener("pointerdown", (e) => {
+      if ((e.pointerType === "mouse" && e.button !== 0) || e.target.closest("button")) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 1) moved = false;
+      cancelAnimationFrame(m.anim);
+      m.svg.classList.remove("animating");
+      rebase();
+    });
+    stage.addEventListener("pointermove", (e) => {
+      const p = pts.get(e.pointerId);
+      if (!p) return;
+      p.x = e.clientX;
+      p.y = e.clientY;
+      const now = center();
+      if (!moved) {
+        // 少しぶれただけ (タップ) なら、まだ地図は動かさない
+        if (pts.size < 2 && Math.hypot(now.cx - base.cx, now.cy - base.cy) < 8) return;
+        moved = true;
+        for (const id of pts.keys()) {
+          try {
+            stage.setPointerCapture(id);
+          } catch {}
+        }
+        m.svg.classList.add("moving");
+        onMove?.();
+      }
+      const { vb: [x0, y0, w0, h0], rect } = base;
+      const [minW, maxW] = widthLimits(m);
+      const w = Math.min(maxW, Math.max(minW, base.d && now.d ? (w0 * base.d) / now.d : w0));
+      const hgt = w / aspectOf(m);
+      // 触れたときに指の下にあった地点が、いまの指の下に来るようにする
+      const ax = x0 + ((base.cx - rect.left) / rect.width) * w0;
+      const ay = y0 + ((base.cy - rect.top) / rect.height) * h0;
+      m.next = clampView(m, [ax - ((now.cx - rect.left) / rect.width) * w, ay - ((now.cy - rect.top) / rect.height) * hgt, w, hgt]);
+      // 描き直しは画面の更新1回につき1度だけ
+      m.frame ||= requestAnimationFrame(() => {
+        m.frame = 0;
+        setView(m, m.next);
+      });
+    });
+    const release = (e) => {
+      if (!pts.delete(e.pointerId)) return;
+      if (pts.size) {
+        rebase(); // 2本指の片方を離したら、残った指でそのまま動かせるようにする
+      } else if (moved) {
+        m.svg.classList.remove("moving");
+        quietUntil = performance.now() + 350;
+      }
+    };
+    stage.addEventListener("pointerup", release);
+    stage.addEventListener("pointercancel", release);
+    stage.addEventListener(
+      "click",
+      (e) => {
+        if (performance.now() < quietUntil && !e.target.closest("button")) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      },
+      true,
+    );
+    stage.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        const rect = stage.getBoundingClientRect();
+        const k = Math.exp(e.deltaY * 0.0022);
+        setView(m, zoomAround(m, k, (e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height));
+        onMove?.();
+      },
+      { passive: false },
+    );
+  }
+
+  // 「世界全体」ボタンは、地図を動かしたか地域を選んでいるときだけ出す。拡大・縮小は限度に来たら押せなくする
+  function updateMapControls() {
+    const m = homeMap;
+    const home = homeView(m);
+    const reset = $("map-reset");
+    const hide = !m.focus && m.vb.every((v, i) => Math.abs(v - home[i]) < 1);
+    if (reset.hidden !== hide) {
+      reset.hidden = hide;
+      // ボタンが出たり消えたりしたら、地域名を重ねない場所を測り直す
+      measure(m);
+      placeChips(m);
+    }
+    const [minW, maxW] = widthLimits(m);
+    $("map-zoom-in").disabled = m.vb[2] <= minW + 0.5;
+    $("map-zoom-out").disabled = m.vb[2] >= maxW - 0.5;
+  }
+
+  // 使い方の案内は、一度地図を動かしたら以後は出さない
+  function hideMapHint() {
+    const hint = $("map-hint");
+    if (hint.hidden || hint.classList.contains("gone")) return;
+    hint.classList.add("gone");
+    store.set("mapMoved", true);
+  }
+
+  // 地図上の地域名チップ (HTML) を、SVG上のラベル位置に合わせて置く。
+  // ラベル位置が枠の中なら、チップが枠からはみ出さないよう内側に寄せる。枠の外やボタンと重なる位置なら出さない
   function placeChips(m) {
     const [vx, vy, vw, vh] = m.vb;
-    for (const [id, chip] of m.chips) {
-      const [x, y] = mapData.labels[id];
-      const left = ((x - vx) / vw) * 100;
-      const top = ((y - vy) / vh) * 100;
-      chip.style.left = `${left}%`;
-      chip.style.top = `${top}%`;
-      chip.classList.toggle("off", left < 4 || left > 96 || top < 6 || top > 94);
+    const [W, H] = m.size;
+    const placed = [...m.chips].map(([id, chip]) => {
+      const [lx, ly] = mapData.labels[id];
+      const ax = ((lx - vx) / vw) * W;
+      const ay = ((ly - vy) / vh) * H;
+      const [hw, hh] = chip.half;
+      const inside = W > 0 && ax >= 0 && ax <= W && ay >= 0 && ay <= H;
+      return { chip, hw, hh, inside, cx: Math.min(W - hw - 6, Math.max(hw + 6, ax)), cy: ay };
+    });
+    // ボタン類と重なる地域名は横にずらす (大きく動かさないと避けられないときは出さない)
+    for (const p of placed) {
+      for (const [l, t, r, b] of m.covers ?? []) {
+        if (!(p.cx + p.hw > l && p.cx - p.hw < r && p.cy + p.hh > t && p.cy - p.hh < b)) continue;
+        const toLeft = p.cx + p.hw - l + 4;
+        const toRight = r - (p.cx - p.hw) + 4;
+        if (Math.min(toLeft, toRight) > 60) p.inside = false;
+        else p.cx += toLeft < toRight ? -toLeft : toRight;
+      }
     }
-    if (m.width) m.pin.setAttribute("r", ((PIN_PX * vw) / m.width).toFixed(2));
+    // 重なった地域名は上下に押し分ける
+    const shown = placed.filter((p) => p.inside);
+    for (let pass = 0; pass < 3; pass++) {
+      for (const [i, a] of shown.entries()) {
+        for (const b of shown.slice(i + 1)) {
+          const ox = Math.min(a.cx + a.hw, b.cx + b.hw) - Math.max(a.cx - a.hw, b.cx - b.hw);
+          const oy = Math.min(a.cy + a.hh, b.cy + b.hh) - Math.max(a.cy - a.hh, b.cy - b.hh);
+          if (ox <= 0 || oy <= 0) continue;
+          const d = (oy + 3) / 2;
+          const [upper, lower] = a.cy <= b.cy ? [a, b] : [b, a];
+          upper.cy -= d;
+          lower.cy += d;
+        }
+      }
+    }
+    for (const { chip, hw, hh, inside, cx, cy: rawY } of placed) {
+      const cy = Math.min(H - hh - 6, Math.max(hh + 6, rawY));
+      chip.style.left = `${cx}px`;
+      chip.style.top = `${cy}px`;
+      const covered = (m.covers ?? []).some(([l, t, r, b]) => cx + hw > l && cx - hw < r && cy + hh > t && cy - hh < b);
+      chip.classList.toggle("off", !inside || covered);
+    }
+    if (W) m.pin.setAttribute("r", ((PIN_PX * vw) / W).toFixed(2));
   }
 
   function renderChips(m, layer, selected) {
@@ -242,6 +436,7 @@
         {
           class: `chip${id === hottest ? " hot" : ""}${selected && id !== selected ? " dim" : ""}${id === selected ? " sel" : ""}`,
           href: `#/world/${id}`,
+          draggable: "false",
           "aria-label": `${r.name} 話題のニュース${r.items.length}件`,
         },
         h("i", { class: "chip-dot", style: `background:${heatColor(r.heat)}` }),
@@ -251,6 +446,8 @@
       layer.append(chip);
       m.chips.set(id, chip);
     }
+    // チップの大きさは置き直すたびに測ると重いので、作ったときにまとめて測っておく
+    for (const chip of m.chips.values()) chip.half = [chip.offsetWidth / 2 || 30, chip.offsetHeight / 2 || 12];
     placeChips(m);
   }
 
@@ -261,7 +458,6 @@
     const selected = isWide ? route.region : null;
     paintMap(homeMap, selected);
     renderChips(homeMap, $("map-chips"), selected);
-    $("map-reset").hidden = !selected;
 
     const box = $("region-cards");
     box.textContent = "";
@@ -517,7 +713,13 @@
     // 広い画面では右側を空けず、地域を選ぶ前は一番話題の地域を出しておく
     const sideRegion = route.region ?? (isWide ? hottestRegion() : null);
     renderHome(sideRegion);
-    zoomMap(homeMap, isWide ? route.region : null);
+    // 広い画面では選んだ地域へ地図を寄せる。狭い画面の地図は、指で動かした位置のままにする
+    const focus = isWide ? route.region : null;
+    if (homeMap.focus !== focus) {
+      const first = homeMap.focus === undefined;
+      homeMap.focus = focus;
+      zoomMap(homeMap, focus, !first);
+    }
 
     const side = $("w-side");
     const open = !!sideRegion;
@@ -525,7 +727,7 @@
     sideWasOpen = open;
     side.classList.toggle("open", open);
     side.inert = !open;
-    $("w-main").inert = !isWide && open;
+    $("w-home").inert = !isWide && open;
     document.body.classList.toggle("w-overlay", !isWide && open);
     if (!open) return;
     const showArticle = !!route.article;
@@ -546,7 +748,11 @@
   let idx = 0;
 
   function navigate(hash, replace = false) {
-    if (hash === location.hash) return;
+    if (hash === location.hash) {
+      // 選んでいる地域をもう一度選んだら、動かした地図をその地域に戻す
+      if (homeMap?.focus) zoomMap(homeMap, homeMap.focus);
+      return;
+    }
     if (replace) {
       history.replaceState({ idx }, "", hash);
     } else {
@@ -603,7 +809,9 @@
       e.preventDefault();
       const tab = a.dataset.tab;
       if (tab === route.view) {
-        window.scrollTo({ top: 0, behavior: reducedMotion.matches ? "auto" : "smooth" });
+        const behavior = reducedMotion.matches ? "auto" : "smooth";
+        window.scrollTo({ top: 0, behavior });
+        if (tab === "world") $("w-main").scrollTo({ top: 0, behavior }); // 広い画面では左側だけがスクロールする
         return;
       }
       const prev = idx > 0 ? entries[idx - 1] : null;
@@ -616,11 +824,6 @@
     if (e.key === "Escape" && route.view === "world" && (route.article || (route.region && !wide.matches))) goBack();
   });
   wide.addEventListener("change", () => renderRoute());
-  window.addEventListener("resize", () => {
-    if (!homeMap) return;
-    homeMap.width = homeMap.svg.clientWidth || homeMap.width;
-    placeChips(homeMap);
-  });
 
   // ---- データ取得 ----
 
@@ -632,12 +835,20 @@
         const res = await fetch("./world-map.json");
         if (!res.ok) throw new Error(`map HTTP ${res.status}`);
         mapData = await res.json();
-        $("map-stage").style.aspectRatio = `${mapData.viewBox[2]} / ${mapData.viewBox[3]}`;
         homeMap = createMap($("world-map"), "home");
         homeMap.svg.addEventListener("click", (e) => {
           const id = e.target.closest?.(".m-region")?.dataset.region;
           if (id) navigate(`#/world/${id}`);
         });
+        homeMap.onView = updateMapControls;
+        homeMap.overlays = $("map-stage").querySelectorAll(".map-legend, .map-zoom, .map-reset");
+        enableGestures(homeMap, $("map-stage"), hideMapHint);
+        // 枠の大きさが変わったら (画面の回転・折りたたみの開閉・タブの切り替え)、見ていた範囲を枠に合わせ直す
+        new ResizeObserver(() => {
+          measure(homeMap);
+          setView(homeMap, clampView(homeMap, homeMap.vb));
+        }).observe($("map-stage"));
+        $("map-hint").hidden = store.get("mapMoved", false);
       }
       const res = await fetch(`./world.json?t=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -661,7 +872,14 @@
   $("w-refresh").addEventListener("click", () => loadWorld(true));
   $("rv-back").addEventListener("click", goBack);
   $("av-back").addEventListener("click", goBack);
-  $("map-reset").addEventListener("click", () => navigate("#/world"));
+  $("map-reset").addEventListener("click", () => {
+    if (homeMap?.focus) navigate("#/world");
+    else if (homeMap) flyTo(homeMap, homeView(homeMap));
+  });
+  $("map-zoom-in").addEventListener("click", () => homeMap && flyTo(homeMap, zoomAround(homeMap, 1 / ZOOM_STEP)));
+  $("map-zoom-out").addEventListener("click", () => homeMap && flyTo(homeMap, zoomAround(homeMap, ZOOM_STEP)));
+  $("map-zoom-in").innerHTML = ICONS.plus;
+  $("map-zoom-out").innerHTML = ICONS.minus;
   $("w-refresh").innerHTML = ICONS.refresh;
   $("map-reset").innerHTML = `${ICONS.reset}<span>世界全体</span>`;
   $("rv-back").innerHTML = ICONS.back;

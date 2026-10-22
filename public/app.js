@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.1.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -444,7 +444,8 @@ $("btn-clear-read").onclick = () => {
   };
 
   window.addEventListener("touchstart", (e) => {
-    if (atTop(e.target) && modal.hidden && !readerOpen && !window.World?.overlayOpen()) {
+    const onMap = e.target.closest?.(".map-stage"); // 地図の上では、指は地図を動かすのに使う
+    if (!onMap && atTop(e.target) && modal.hidden && !readerOpen && !window.World?.overlayOpen()) {
       startY = e.touches[0].clientY;
       pulled = false;
     } else {

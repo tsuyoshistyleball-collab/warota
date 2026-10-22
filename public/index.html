@@ -17,7 +17,7 @@
 <div id="ptr" aria-hidden="true"><span></span></div>
 
 <section id="view-world" aria-label="世界のニュース">
-  <div id="w-main">
+  <div id="w-home">
     <header class="w-head">
       <div class="w-title">
         <h1>世界のニュース</h1>
@@ -28,25 +28,29 @@
 
     <div class="map-card">
       <div id="map-stage" class="map-stage">
-        <svg id="world-map" class="map-svg" role="img" aria-label="世界地図。地域を選ぶと話題のニュースを表示します"></svg>
+        <svg id="world-map" class="map-svg" role="img" aria-label="世界地図。指で動かせます。地域を選ぶと話題のニュースを表示します"></svg>
         <div id="map-chips" class="map-chips"></div>
+        <p id="map-hint" class="map-hint" hidden>指で動かして、地域をタップ</p>
         <button id="map-reset" class="map-reset" hidden></button>
-      </div>
-      <div class="map-foot">
-        <span class="legend" aria-hidden="true">落ち着き<i class="legend-bar"></i>話題沸騰</span>
-        <span class="map-tip">地域をタップ</span>
+        <div class="map-legend" aria-hidden="true">落ち着き<i class="legend-bar"></i>話題沸騰</div>
+        <div class="map-zoom">
+          <button id="map-zoom-in" aria-label="地図を拡大"></button>
+          <button id="map-zoom-out" aria-label="地図を縮小"></button>
+        </div>
       </div>
     </div>
 
-    <p id="w-status" class="w-status" hidden></p>
+    <div id="w-main">
+      <p id="w-status" class="w-status" hidden></p>
 
-    <h2 class="w-section">地域ごとの話題</h2>
-    <div id="region-cards" class="region-cards" aria-busy="true">
-      <div class="rcard skeleton"></div>
-      <div class="rcard skeleton"></div>
-      <div class="rcard skeleton"></div>
+      <h2 class="w-section">地域ごとの話題</h2>
+      <div id="region-cards" class="region-cards" aria-busy="true">
+        <div class="rcard skeleton"></div>
+        <div class="rcard skeleton"></div>
+        <div class="rcard skeleton"></div>
+      </div>
+      <p class="w-credit">地図データ: Natural Earth</p>
     </div>
-    <p class="w-credit">地図データ: Natural Earth</p>
   </div>
 
   <aside id="w-side" aria-label="地域のニュース" inert>
