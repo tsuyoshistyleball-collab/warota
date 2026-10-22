@@ -38,6 +38,7 @@
     minus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>',
   };
 
+  const TAB_ORDER = ["world", "matome"]; // 下のタブの並び (左から)
   const wide = matchMedia("(min-width: 600px)");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -50,6 +51,7 @@
   let sideWasOpen = false;
   let regionShown = { id: null, updated: 0 };
   let articleShown = "";
+  let leaving = null; // スワイプで送り出し中の画面 {anim, timer}
 
   const store = {
     get(key, fallback) {
@@ -117,6 +119,7 @@
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
 
+  const viewEl = (view) => $(view === "world" ? "view-world" : "view-matome");
   const regionOf = (id) =>
     world?.regions.find((r) => r.id === id) ?? { id, name: REGION_NAMES[id], heat: 0, items: [] };
   // 盛り上がりが一番大きい地域 (広い画面で最初に右側へ出す)
@@ -692,7 +695,8 @@
 
   function showView() {
     if (shownView === route.view) return;
-    if (shownView) scrollPos[shownView] = window.scrollY;
+    const before = shownView;
+    if (before) scrollPos[before] = window.scrollY;
     const isWorld = route.view === "world";
     $("view-world").hidden = !isWorld;
     $("view-matome").hidden = isWorld;
@@ -704,6 +708,15 @@
     if (!isWorld) document.body.classList.remove("w-overlay");
     window.scrollTo(0, scrollPos[route.view]);
     shownView = route.view;
+    finishLeaving();
+    // 新しい画面は、タブの並びの方向から滑り込ませる (狭い画面で地域の一覧が全面に開く場合は除く)
+    if (before && !reducedMotion.matches && !(isWorld && route.region && !wide.matches)) {
+      const dir = TAB_ORDER.indexOf(route.view) > TAB_ORDER.indexOf(before) ? 1 : -1;
+      viewEl(route.view).animate(
+        [{ transform: `translateX(${dir * 48}px)`, opacity: 0 }, { transform: "none", opacity: 1 }],
+        { duration: 240, easing: "cubic-bezier(.2, .8, .2, 1)" },
+      );
+    }
   }
 
   function renderRoute() {
@@ -803,7 +816,15 @@
     navigate(a.getAttribute("href"));
   });
 
-  // 下のタブ。直前の履歴がそのタブなら「戻る」で切り替え、タブを行き来しても履歴が積み重ならないようにする
+  // ---- 下のタブ (タップ・左右のスワイプで切り替え) ----
+
+  // タブを切り替える。直前の履歴がそのタブなら「戻る」で切り替え、タブを行き来しても履歴が積み重ならないようにする
+  function switchTab(tab) {
+    const prev = idx > 0 ? entries[idx - 1] : null;
+    if (prev && parseHash(prev).view === tab) history.back();
+    else navigate(`#/${tab}`);
+  }
+
   for (const a of document.querySelectorAll("#tabbar a")) {
     a.addEventListener("click", (e) => {
       e.preventDefault();
@@ -814,10 +835,139 @@
         if (tab === "world") $("w-main").scrollTo({ top: 0, behavior }); // 広い画面では左側だけがスクロールする
         return;
       }
-      const prev = idx > 0 ? entries[idx - 1] : null;
-      if (prev && parseHash(prev).view === tab) history.back();
-      else navigate(a.getAttribute("href"));
+      switchTab(tab);
     });
+  }
+
+  // 画面を左右にスワイプしてタブを切り替える。画面は指に合わせて動き、十分に動かすか素早く払うと切り替わる。
+  // 地図 (指で動かす)・横にスクロールする場所 (まとめのカテゴリ)・入力欄から始めたときや、
+  // 地域・記事 (狭い画面)・リーダー・設定の画面が開いているときは使わない
+  let swipe = null; // {x, y, axis, dx, trail: [[時刻, dx], ...]}
+
+  function swipeBlocked(target) {
+    if (document.body.classList.contains("w-overlay") || !$("reader").hidden || !$("settings-modal").hidden) return true;
+    for (let el = target; el && el !== document.body; el = el.parentElement) {
+      if (el.matches(".map-stage, input, textarea")) return true;
+      if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true;
+    }
+    return false;
+  }
+  // 指を動かした向きにあるタブ (左へ払うと右隣のタブ)
+  const swipeTarget = (dx) => TAB_ORDER[TAB_ORDER.indexOf(route.view) + (dx < 0 ? 1 : -1)] ?? null;
+
+  // 下のタブの色の付いた丸を、今のタブから切り替え先へ p (0〜1) だけ移す
+  function setPills(from, to, p) {
+    for (const a of document.querySelectorAll("#tabbar a")) {
+      const v = a.dataset.tab === from ? 1 - p : a.dataset.tab === to ? p : 0;
+      a.querySelector(".tab-ic").style.setProperty("--pill", v.toFixed(3));
+    }
+  }
+  function clearPills() {
+    $("tabbar").classList.remove("dragging");
+    for (const ic of document.querySelectorAll("#tabbar .tab-ic")) ic.style.removeProperty("--pill");
+  }
+
+  window.addEventListener(
+    "touchstart",
+    (e) => {
+      if (swipe?.axis === "x") finishSwipe(null); // 途中で2本目の指が触れたら取りやめる
+      swipe = null;
+      if (e.touches.length !== 1 || leaving || swipeBlocked(e.target)) return;
+      swipe = { x: e.touches[0].clientX, y: e.touches[0].clientY, axis: null, dx: 0, trail: [] };
+    },
+    { passive: true },
+  );
+  window.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!swipe || e.touches.length !== 1) return;
+      const dx = e.touches[0].clientX - swipe.x;
+      const dy = e.touches[0].clientY - swipe.y;
+      if (!swipe.axis) {
+        if (Math.hypot(dx, dy) < 10) return;
+        // 最初に大きく動いた向きで、横のスワイプか縦のスクロールかを決める
+        swipe.axis = Math.abs(dx) > Math.abs(dy) * 1.3 ? "x" : "y";
+        if (swipe.axis === "y") {
+          swipe = null;
+          return;
+        }
+        viewEl(route.view).style.willChange = "transform";
+        $("tabbar").classList.add("dragging");
+      }
+      const now = performance.now();
+      swipe.dx = dx;
+      swipe.trail.push([now, dx]);
+      while (swipe.trail.length > 2 && now - swipe.trail[0][0] > 100) swipe.trail.shift();
+      // 切り替え先がある向きは指に合わせて動かし、ない向き (端のタブ) はゴムのように少しだけ動かす
+      const to = swipeTarget(dx);
+      const p = to ? Math.min(1, Math.abs(dx) / (document.documentElement.clientWidth * 0.5)) : 0;
+      const el = viewEl(route.view);
+      el.style.transform = `translateX(${to ? dx * 0.6 : Math.sign(dx) * Math.min(36, Math.abs(dx) * 0.18)}px)`;
+      el.style.opacity = String(1 - p * 0.35);
+      setPills(route.view, to, p);
+    },
+    { passive: true },
+  );
+  window.addEventListener(
+    "touchend",
+    () => {
+      if (swipe?.axis !== "x") {
+        swipe = null;
+        return;
+      }
+      const { dx, trail } = swipe;
+      const [t0, x0] = trail[0];
+      const [t1, x1] = trail[trail.length - 1];
+      const v = t1 > t0 ? (x1 - x0) / (t1 - t0) : 0; // 指を離す直前の速さ (px/ms)
+      const to = swipeTarget(dx);
+      const far = Math.abs(dx) > document.documentElement.clientWidth * 0.28;
+      const flick = Math.abs(v) > 0.45 && Math.abs(dx) > 40 && Math.sign(v) === Math.sign(dx);
+      finishSwipe(to && (far || flick) ? to : null);
+    },
+    { passive: true },
+  );
+  window.addEventListener(
+    "touchcancel",
+    () => {
+      if (swipe?.axis === "x") finishSwipe(null);
+      swipe = null;
+    },
+    { passive: true },
+  );
+
+  // スワイプを終える。to があれば今の画面を指の向きへ送り出してから切り替え、なければ元の位置へ戻す
+  function finishSwipe(to) {
+    const el = viewEl(route.view);
+    const from = { transform: el.style.transform || "none", opacity: el.style.opacity || "1" };
+    const dir = Math.sign(swipe.dx) || 1;
+    swipe = null;
+    el.style.transform = "";
+    el.style.opacity = "";
+    el.style.willChange = "";
+    if (!to) {
+      clearPills();
+      if (!reducedMotion.matches) el.animate([from, { transform: "none", opacity: 1 }], { duration: 200, easing: "cubic-bezier(.2, .8, .2, 1)" });
+      return;
+    }
+    $("tabbar").classList.remove("dragging");
+    setPills(route.view, to, 1);
+    // 送り出した状態のまま切り替わるのを待つ (「戻る」で切り替えるときは少し遅れて切り替わるため)
+    const anim = el.animate([from, { transform: `translateX(${dir * document.documentElement.clientWidth * 0.35}px)`, opacity: 0 }], {
+      duration: reducedMotion.matches ? 0 : 150,
+      easing: "ease-in",
+      fill: "forwards",
+    });
+    leaving = { anim, timer: setTimeout(finishLeaving, 900) };
+    anim.onfinish = () => switchTab(to);
+  }
+
+  // 送り出した画面の後始末 (切り替わったとき、または切り替わらずに時間が過ぎたとき)
+  function finishLeaving() {
+    if (!leaving) return;
+    clearTimeout(leaving.timer);
+    leaving.anim.cancel();
+    leaving = null;
+    clearPills();
   }
 
   document.addEventListener("keydown", (e) => {

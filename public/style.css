@@ -445,14 +445,27 @@ body.noscroll { overflow: hidden; }
   -webkit-tap-highlight-color: transparent;
 }
 .tab-ic {
+  position: relative;
   display: grid;
   place-items: center;
   width: 58px;
   height: 30px;
   border-radius: 999px;
-  transition: background-color .25s;
 }
+/* 選んでいるタブの色の付いた丸。スワイプ中は指の動きに合わせて隣のタブへ移る (--pill: 0〜1) */
+.tab-ic::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #ffe9d4;
+  opacity: var(--pill, 0);
+  transition: opacity .25s;
+}
+#tabbar a[aria-current] .tab-ic::before { opacity: var(--pill, 1); }
+#tabbar.dragging .tab-ic::before { transition: none; }
 .tab-ic svg {
+  position: relative;
   width: 22px;
   height: 22px;
   fill: none;
@@ -462,7 +475,17 @@ body.noscroll { overflow: hidden; }
   stroke-linejoin: round;
 }
 #tabbar a[aria-current] { color: var(--fg); }
-#tabbar a[aria-current] .tab-ic { background: #ffe9d4; color: var(--accent-ink); }
+#tabbar a[aria-current] .tab-ic { color: var(--accent-ink); }
+
+/* スワイプや切り替えのアニメーションで画面を横にずらしても、ページの幅が広がらないようにする
+   (スマホのブラウザはページが画面より広いと全体を縮めて表示するため) */
+#views { overflow-x: clip; }
+
+/* 横方向の指の動きはタブの切り替え (スワイプ) に使い、縦はこれまで通りスクロールする */
+#view-world,
+#view-matome,
+#w-main,
+.pane-scroll { touch-action: pan-y pinch-zoom; }
 
 /* まとめ画面は広い画面で読みやすい幅に収める */
 @media (min-width: 900px) {
