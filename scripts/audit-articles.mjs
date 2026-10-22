@@ -85,7 +85,24 @@ function context(html, via) {
   return `root: ${chain.join(" < ")}\n    first children: ${inside.join(" | ")}`;
 }
 
-export async function auditArticle(site, item) {
+// スレのレスの見出しに付く日付 (26/10/22(木) など) の数
+const POST_DATE_RE = /\d{2,4}\/\d{1,2}\/\d{1,2}\s*[(（][月火水木金土日][)）]/g;
+const postDates = (s) => (s.match(POST_DATE_RE) ?? []).length;
+
+// ページの中で文字の多いまとまり (本文の入れ物の候補) と、そこに含まれるレスの数
+function candidates(html) {
+  const { document } = parseHTML(html);
+  const rows = [];
+  for (const el of document.querySelectorAll("div, article, section, main, td, dl, ul")) {
+    const len = el.textContent.trim().length;
+    if (len < 400) continue;
+    if ([...el.children].some((c) => c.textContent.trim().length > len * 0.85)) continue;
+    rows.push([len, `${label(el)} text=${len} posts=${postDates(el.textContent)} "${clip(el.textContent, 40)}"`]);
+  }
+  return rows.sort((a, b) => b[0] - a[0]).slice(0, 8).map(([, r]) => r);
+}
+
+export async function auditArticle(site, item, showHtml = false) {
   const lines = [`--- [${site.name}] ${clip(item.title, 60)}`, `    ${item.link}`];
   let html;
   try {
@@ -94,7 +111,11 @@ export async function auditArticle(site, item) {
     lines.push(`    FETCH NG: ${err.message}`);
     return lines;
   }
-  const res = await extract(html, item.link).catch((err) => ({ error: err.message }));
+  if (showHtml) {
+    lines.push(`    page posts=${postDates(parseHTML(html).document.body?.textContent ?? "")}`);
+    for (const c of candidates(html)) lines.push(`    cand: ${c}`);
+  }
+  const res = await extract(html, item.link, item.title).catch((err) => ({ error: err.message }));
   if (!res || res.error) {
     lines.push(`    EXTRACT NG: ${res?.error ?? "no content"}`);
     return lines;
@@ -111,15 +132,27 @@ export async function auditArticle(site, item) {
   const show = total <= 16 ? rows : [...rows.slice(0, 10), `… (${total - 16} more)`, ...rows.slice(-6)];
   for (const r of show) lines.push(`      ${r}`);
   lines.push(`    classes: ${classStats(res.html) || "-"}`);
+  if (showHtml) {
+    const flat = res.html.replace(/\s+/g, " ");
+    lines.push(`    html head: ${flat.slice(0, 1500)}`);
+    if (flat.length > 1500) lines.push(`    html tail: ${flat.slice(-700)}`);
+  }
   return lines;
 }
 
+// spec: "<範囲 0-9 か番号の並び 2,4,6> [1サイトあたりの記事数] [html]"
 export async function audit(spec = "") {
   const feeds = JSON.parse(await readFile(new URL("../feeds.json", import.meta.url), "utf8"));
-  const [range = `0-${feeds.length - 1}`, per = "2"] = spec.trim().split(/\s+/);
-  const [from, to] = range.split("-").map(Number);
+  const [range = `0-${feeds.length - 1}`, per = "2", mode = ""] = spec.trim().split(/\s+/);
   const perSite = Number(per) || 2;
-  const targets = feeds.map((f, i) => [i, f]).filter(([i]) => i >= from && i <= to);
+  const showHtml = mode === "html";
+  const pick = range.includes(",")
+    ? new Set(range.split(",").map(Number))
+    : (() => {
+        const [from, to = from] = range.split("-").map(Number);
+        return new Set(feeds.map((_, i) => i).filter((i) => i >= from && i <= to));
+      })();
+  const targets = feeds.map((f, i) => [i, f]).filter(([i]) => pick.has(i));
   const reports = new Map();
   let next = 0;
   // 6サイトずつ並行して調べ、結果はサイトの順に出す
@@ -130,7 +163,7 @@ export async function audit(spec = "") {
         const lines = [`\n######## ${i}: ${feed.name} (${feed.url})`];
         try {
           const xml = await fetchTextWithFallback(feed.url, 20_000, "application/rss+xml, application/xml, text/xml, */*");
-          for (const item of parseFeed(xml).slice(0, perSite)) lines.push(...(await auditArticle(feed, item)));
+          for (const item of parseFeed(xml).slice(0, perSite)) lines.push(...(await auditArticle(feed, item, showHtml)));
         } catch (err) {
           lines.push(`  FEED NG: ${err.message}`);
         }
