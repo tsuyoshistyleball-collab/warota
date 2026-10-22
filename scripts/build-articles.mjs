@@ -29,7 +29,7 @@ const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 //  v14: アルファルファの.article_bodymore対応 + 画像・動画を本文量として加点 /
 //  v15: 全サイト点検に基づく見直し。レスの集まりから本文を探す、記事タイトル・投稿日・コメント欄・
 //       宣伝リンクの除去、レスの見出しの統一 (class="ph")、<font> を文中のまま表示、YouTube 埋め込み、遅延読み込み画像 /
-//  v16: 2回目の全サイト点検。レスに見せかけた宣伝・記号付きのリンクの列・共有ボタン・はてブの除去、
+//  v16: 2回目の全サイト点検。レスに見せかけた宣伝・記号付きのリンクの列・よそのリンクが混ざった一覧・共有ボタン・はてブの除去、
 //       共有ボタンの「コメントを見る」で本文を切らない、TikTok・Instagram の埋め込み、空の枠と続きすぎる改行の整理)
 const ART_VERSION = 16;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
@@ -481,12 +481,12 @@ const BLOG_LINK_RE = /\/archives\/|blog-entry-\d+|\/acv\/\d+|[?&]url=http|antenn
 const DECOR = String.raw`[\s\p{P}\p{S}]*`;
 // それだけで1行になっている案内・宣伝の見出しや、共有ボタンの文字
 const LABEL_RE = new RegExp(
-  `^${DECOR}(スポンサー?ド?\\s*リンク|スポンサー|PR|広告|おすすめ記事|オススメ記事|おすすめ|関連リンク|(最近の|最新の|今日の|今週の)?(関連|注目|人気|おすすめ|オススメ|新着|最新)の?(記事|まとめ|ニュース|スレ|エントリー?)(一覧|ランキング)?|Pick\\s*up!?|今一番注目されている記事.*|やんごとなき人気記事|ピックアップニュース|ピックアップ|他ブログ様新着記事|他サイト様新着記事|みんなが見てる|コメントする|コメントを書く|コメントを投稿する|コメントを見る.*|コメント一覧.*|.{0,12}の?全記事一覧|気になるAmazonの本|直近のコメント数ランキング|記事ランキング.*|人気ページランキング|月間ランキング|この記事が気に入ったら.*|Tweet|ツイート|シェア|はてブ|LINEで送る|Pocket|フォローする|最新情報をお届けします|(この)?記事を(はてブ|ツイート|シェア|ポスト)(する)?|(この)?(エントリー|記事)をはてなブックマークに追加|みんなのポスト|タイムセール(開催中|実施中)?)${DECOR}$`,
+  `^${DECOR}(スポンサー?ド?\\s*リンク|スポンサー|PR|広告|おすすめ記事|オススメ記事|おすすめ|関連リンク|(最近の|最新の|今日の|今週の)?(関連|注目|人気|おすすめ|オススメ|新着|最新)の?(記事|まとめ|ニュース|スレ|エントリー?)(一覧|ランキング)?|Pick\\s*up!?|今一番注目されている記事.*|やんごとなき人気記事|ピックアップニュース|ピックアップ|他ブログ様新着記事|他サイト様新着記事|みんなが見てる|コメントする|コメントを書く|コメントを投稿する|コメントを見る.*|コメント一覧.*|.{0,12}の?全記事一覧|気になるAmazonの本|直近のコメント数ランキング|記事ランキング.*|人気ページランキング|月間ランキング|この記事が気に入ったら.*|Tweet|ツイート|シェア|はてブ|LINEで送る|Pocket|フォローする|最新情報をお届けします|(この)?記事を(はてブ|ツイート|シェア|ポスト)(する)?|(この)?(エントリー|記事)をはてなブックマークに追加|みんなのポスト|タイムセール(開催中|実施中)?|(こちら|こっち)も(おすすめ|オススメ)(です)?|(こんな|こちらの)記事も(おすすめ|オススメ|読まれています|人気です)|この記事を読んだ人は.{0,20})${DECOR}$`,
   "iu",
 );
 // 書き出しがおすすめ記事などの案内で、リンクが多いまとまり
 const PROMO_START_RE = new RegExp(
-  `^${DECOR}(おすすめ|オススメ|今週のおすすめ|厳選おすすめ|(最近の|今日の|今週の)?(関連|注目|人気|新着|最新)の?(記事|まとめ|ニュース|スレ)|関連スレ|あわせて読みたい|合わせて読みたい|人気記事|注目記事|注目ニュース|今読まれている|よく読まれている|ピックアップ|PICK\\s*UP|他ブログ|新着記事|最新記事|タイムセール|お気に入りブログ|イチオシ|一押し)`,
+  `^${DECOR}(おすすめ|オススメ|今週のおすすめ|厳選おすすめ|(最近の|今日の|今週の)?(関連|注目|人気|新着|最新)の?(記事|まとめ|ニュース|スレ)|関連スレ|あわせて読みたい|合わせて読みたい|人気記事|注目記事|注目ニュース|今読まれている|よく読まれている|ピックアップ|PICK\\s*UP|他ブログ|新着記事|最新記事|タイムセール|お気に入りブログ|イチオシ|一押し|(こちら|こっち)も(おすすめ|オススメ)|(こんな|こちらの)記事も|この記事を読んだ人は)`,
   "iu",
 );
 // 広告の利用の表示・コメント欄の注意書き・トラックバック・ランキングや登録のお願いなど
@@ -694,7 +694,13 @@ function removeFakePosts(root, ctx) {
   for (const el of [...root.querySelectorAll("*")].reverse()) {
     if (!root.contains(el)) continue;
     const text = el.textContent.replace(/\s+/g, " ").trim();
-    if (text.length > 1500 || countPosts(text) !== 1 || !isPromoList(el, text, ctx, 3, 0.6)) continue;
+    if (text.length > 5000 || countPosts(text) !== 1 || !isPromoList(el, text, ctx, 3, 0.6)) continue;
+    // 見出しの日付 (と時刻・ID) のすぐ後からリンクが並ぶものだけ (本物のレスの後ろにリンク集が続く入れ物は、本文の文字があるので残す)
+    const date = text.match(POST_DATE_RE);
+    const link = [...el.querySelectorAll("a[href]")].find((a) => isPromoLink(a, ctx) && flatText(a.textContent).length >= 8);
+    const at = text.indexOf(link.textContent.replace(/\s+/g, " ").trim(), date.index);
+    const between = at < 0 ? text : text.slice(date.index + date[0].length, at).replace(/\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?|ID\s*[:：]\s*[\w+/.]{1,12}/g, "").trim();
+    if (between.length > 12 && !PROMO_START_RE.test(between) && !LABEL_RE.test(between)) continue;
     let parent = el.parentElement;
     el.remove();
     // 枠 (引用など) の中に残った宣伝リンクも除く
@@ -760,7 +766,14 @@ function tidy(root, ctx) {
     }
   }
 
-  // 3) 入れ物にじかに並んだ宣伝リンクの列
+  // 3) 他の記事へのリンクばかりの一覧 (関連記事・人気記事など) は、長さによらず丸ごと除く (本文の半分を超えるものは残す)。
+  //    よそのサイトへのリンクが混ざっていても途中で切れて残らないよう、リンクの列より先に行う
+  for (const el of [...root.querySelectorAll("*")].reverse()) {
+    if (!root.contains(el)) continue;
+    const text = el.textContent.replace(/\s+/g, " ").trim();
+    if (text.length < ctx.totalLen * 0.5 && countPosts(text) === 0 && isPromoList(el, text, ctx, 5, 0.7)) removeBlock(el);
+  }
+  // 入れ物にじかに並んだ宣伝リンクの列
   removeLinkRuns(root, ctx);
 
   // 4) コメント欄: 「コメントする」などから後ろにレスがなければ、そこから後ろを全部除く
@@ -795,7 +808,6 @@ function tidy(root, ctx) {
   const order = new Map(rest.map((el, i) => [el, i]));
   ctx.beforePosts = (el) => (firstPost < 0 ? order.get(el) < 8 : order.get(el) < firstPost);
   ctx.afterPosts = (el) => lastPost >= 0 && order.get(el) > lastPost && !ctx.inPostBody(el);
-  const rootLen = root.textContent.length;
   for (const el of rest.reverse()) {
     if (!root.contains(el)) continue;
     const text = el.textContent.replace(/\s+/g, " ").trim();
@@ -806,12 +818,8 @@ function tidy(root, ctx) {
       if (isLink || (!media && EMPTY_OK_TAGS.has(el.tagName) && !el.querySelector("br"))) el.remove();
       continue;
     }
-    if (countPosts(text) > 0) continue; // レスを含むものは触らない
-    if (text.length > 400) {
-      // 長くても、他の記事へのリンクばかりのまとまり (関連記事・人気記事の一覧) は除く
-      if (text.length <= 3000 && text.length < rootLen * 0.5 && isPromoList(el, text, ctx, 5, 0.7)) removeBlock(el);
-      continue;
-    }
+    // レスを含むものや長いもの (リンクの一覧は 3) で除いてある) は触らない
+    if (countPosts(text) > 0 || text.length > 400) continue;
     if (isJunkBlock(el, text, ctx)) removeBlock(el);
   }
   // 6) 入れ物に直接書かれた案内の文字 (「スポンサードリンク」など。レスの本文は除く)
@@ -975,6 +983,8 @@ export async function extract(html, url, title = "") {
   };
 
   const sanitizeRoots = (rootsArr) => {
+    // 本文全体の文字数 (リンクの一覧を除くときに、本文の大半を消してしまわないための目安)
+    ctx.totalLen = rootsArr.reduce((n, r) => n + r.textContent.replace(/\s+/g, " ").trim().length, 0);
     for (const root of rootsArr) {
       // 先にレスの見出しに印を付けておき、整理のときにレスの本文を見分けられるようにする
       removeFakePosts(root, ctx);

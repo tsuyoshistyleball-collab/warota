@@ -346,3 +346,41 @@ test("なんJスタジアム: 1本ずつ <div> に入って並んだアンテナ
   assert.ok(!textOf(html).includes("アンテナの記事"), textOf(html).slice(-200));
   assert.equal((textOf(html).match(/ID:abc/g) ?? []).length, 7);
 });
+
+test("なんJスタジアム: リンクが何十本も続く長い「1000：」のレスも、見出しごと除く", { skip }, async () => {
+  const a = (h, i) => `<span class="text"><a href="${h}"><span style="color:#06c">アンテナの長い記事のタイトルその${i}です</span></a></span><br><br>`;
+  const links = Array.from({ length: 60 }, (_, i) => a(`https://${i % 2 ? "nullpoantenna" : "matomeantena"}.com/feed/3000010820${i}`, i)).join("");
+  const fake = `<blockquote><div>1000 ：<span style="color:green">なんじぇいスタジアム</span><span> 2014/11/30(日) 00:00:00</span><span><b><br><br>${links}</b></span></div></blockquote>`;
+  const html = await run(`<div class="article-body-inner">${posts(4)}<div class="article-body-more">${posts(3, 5)}${fake}</div></div>`);
+  const text = textOf(html);
+  assert.ok(!text.includes("なんじぇいスタジアム") && !text.includes("アンテナの長い記事"), text.slice(-200));
+  assert.equal((text.match(/ID:abc/g) ?? []).length, 7);
+});
+
+test("本物のレスの後ろにリンク集が続く入れ物では、リンク集だけを除いてレスは残す", { skip }, async () => {
+  const list = `<ul>${Array.from({ length: 5 }, (_, i) => `<li><a href="https://matomeantena.com/feed/1${i}">よそのまとめの記事のタイトルが長いものその${i}</a></li>`).join("")}</ul>`;
+  const html = await run(`<div class="article-body-inner">${posts(6)}<div>${posts(1, 7, "本物の返事です。とても大事な中身。")}${list}</div></div>`);
+  const text = textOf(html);
+  assert.ok(text.includes("本物の返事です") && !text.includes("よそのまとめ"), text.slice(-200));
+  assert.equal((text.match(/ID:abc/g) ?? []).length, 7);
+});
+
+test("おーるじゃんる: よそのサイトへのリンクが混ざった「あわせて読みたい」「こちらもおすすめ」の一覧を丸ごと除く", { skip }, async () => {
+  const hrefs = [
+    "https://moudamepo.com/pick.cgi?code=2169&cate=10", "https://newmofu.doorblog.jp/archives/60113472.html?url=a",
+    "https://newpuru.doorblog.jp/archives/63562090.html?id=1", "https://matomeantena.com/feed/30000106019347",
+    "https://yuukoku.net/gate.cgi?1004=1792624191", "https://byo-soku.com/?archive=9062414",
+    "https://newser.cc/news/20261022?ni=6137624", "https://l-o-l.net/no/34455.html",
+    "https://nullpoantenna.com/feed/30000088078210", "https://yuukoku.net/gate.cgi?1048=1792624104",
+  ];
+  const item = (h, i) => `<li><a href="${h}" target="_blank">よそのまとめの記事のタイトルその${i}です</a></li>`;
+  const list = `<div class="aoj-b"><ul class="aoj-b-list"><li class="aoj-b-head">あわせて読みたい</li>${hrefs.slice(0, 4).map(item).join("")}<li class="aoj-b-head">注目ニュース</li>${hrefs.slice(4, 9).map((h, i) => item(h, i + 4)).join("")}<li class="aoj-b-head">こちらもおすすめ</li>${item(hrefs[9], 9)}</ul></div>`;
+  const html = await run(
+    `<div class="article-body-inner">${posts(6)}</div><div class="article-body-more">${posts(6, 7)}${list}<p>引用元: <a href="https://lavender.5ch.io/news4plus/1792639023">元のスレのタイトル</a></p></div>`,
+    "テストの記事のタイトルです",
+    "https://crx7601.com/archives/63562406.html",
+  );
+  const text = textOf(html);
+  for (const junk of ["よそのまとめ", "あわせて読みたい", "注目ニュース", "こちらもおすすめ"]) assert.ok(!text.includes(junk), junk);
+  assert.ok(text.includes("元のスレのタイトル") && (text.match(/ID:abc/g) ?? []).length === 12);
+});
