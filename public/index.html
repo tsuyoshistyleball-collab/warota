@@ -24,11 +24,6 @@
         <h1>世界のニュース</h1>
         <p id="w-updated">読み込み中…</p>
       </div>
-      <div id="map-size" class="seg" role="group" aria-label="地図の大きさ">
-        <span>地図</span>
-        <button type="button" data-size="small" aria-pressed="false">小</button>
-        <button type="button" data-size="large" aria-pressed="true">大</button>
-      </div>
       <button id="w-refresh" class="icon-btn" aria-label="更新" title="更新"></button>
     </header>
 
@@ -97,7 +92,6 @@
       <div class="bar-actions">
         <button id="btn-search" aria-label="検索" title="検索">🔍</button>
         <button id="btn-refresh" aria-label="更新" title="更新">↻</button>
-        <button id="btn-settings" aria-label="設定" title="設定">⚙</button>
       </div>
     </div>
     <div id="searchbar" hidden>
@@ -113,6 +107,204 @@
     <p id="updated"></p>
   </main>
 </section>
+
+<section id="view-settings" aria-labelledby="s-title" hidden>
+  <header class="s-head">
+    <h1 id="s-title">設定</h1>
+    <p>変更はすぐに反映されます</p>
+  </header>
+  <div class="s-body">
+    <section id="s-world" class="s-group" aria-labelledby="s-world-h">
+      <h2 id="s-world-h" class="s-label">ワールド</h2>
+      <div class="s-card s-pad">
+        <h3 id="map-size-h" class="s-title">地図の大きさ</h3>
+        <p class="s-note">ワールドの画面の世界地図</p>
+        <!-- 選んだときの画面の見本。狭い画面用 (art-compact) と広い画面用 (art-wide) があり、地図の形と色は world.js が入れる -->
+        <div class="size-pick" role="radiogroup" aria-labelledby="map-size-h">
+          <label class="size-opt">
+            <input type="radio" name="map-size" value="small">
+            <span class="size-box">
+              <svg class="size-art art-compact" viewBox="0 0 120 128" aria-hidden="true">
+                <defs>
+                  <clipPath id="art-cs"><rect width="120" height="128" rx="9"/></clipPath>
+                  <clipPath id="art-cs-map"><rect x="10" y="27" width="100" height="42.6" rx="4"/></clipPath>
+                </defs>
+                <g clip-path="url(#art-cs)">
+                  <rect width="120" height="128" fill="#eceef2"/>
+                  <rect x="9" y="8" width="36" height="6" rx="3" fill="#1a1a24"/>
+                  <rect x="9" y="17" width="20" height="3" rx="1.5" fill="#c4c7d0"/>
+                  <rect x="7" y="24" width="106" height="49" rx="7" fill="#fff"/>
+                  <rect x="10" y="27" width="100" height="42.6" rx="4" fill="#e9eff6"/>
+                  <g clip-path="url(#art-cs-map)"><g class="art-map" transform="translate(10 25.44) scale(.1)"/></g>
+                  <rect x="7" y="78" width="106" height="16" rx="5" fill="#fff"/>
+                  <rect x="12" y="82" width="64" height="3" rx="1.5" fill="#a3a6b0"/>
+                  <rect x="12" y="87.5" width="44" height="3" rx="1.5" fill="#d9dbe0"/>
+                  <rect x="95" y="80.5" width="13" height="11" rx="3" fill="#f3dccb"/>
+                  <rect x="7" y="98" width="106" height="16" rx="5" fill="#fff"/>
+                  <rect x="12" y="102" width="58" height="3" rx="1.5" fill="#a3a6b0"/>
+                  <rect x="12" y="107.5" width="40" height="3" rx="1.5" fill="#d9dbe0"/>
+                  <rect x="95" y="100.5" width="13" height="11" rx="3" fill="#dbe4ef"/>
+                  <rect x="7" y="118" width="106" height="16" rx="5" fill="#fff"/>
+                  <rect x="12" y="122" width="62" height="3" rx="1.5" fill="#a3a6b0"/>
+                </g>
+              </svg>
+              <svg class="size-art art-wide" viewBox="0 0 160 100" aria-hidden="true">
+                <defs>
+                  <clipPath id="art-ws"><rect width="160" height="100" rx="8"/></clipPath>
+                  <clipPath id="art-ws-map"><rect x="8.5" y="18.5" width="63" height="26.9" rx="3"/></clipPath>
+                </defs>
+                <g clip-path="url(#art-ws)">
+                  <rect width="160" height="100" fill="#eceef2"/>
+                  <rect x="80" width="80" height="100" fill="#fff"/>
+                  <rect x="79.6" width=".8" height="100" fill="#dcdfe5"/>
+                  <rect x="7" y="7" width="28" height="5" rx="2.5" fill="#1a1a24"/>
+                  <rect x="38" y="8" width="14" height="3" rx="1.5" fill="#c4c7d0"/>
+                  <rect x="6" y="16" width="68" height="32" rx="5" fill="#fff"/>
+                  <rect x="8.5" y="18.5" width="63" height="26.9" rx="3" fill="#e9eff6"/>
+                  <g clip-path="url(#art-ws-map)"><g class="art-map" transform="translate(8.5 17.52) scale(.063)"/></g>
+                  <rect x="6" y="53" width="68" height="20" rx="5" fill="#fff"/>
+                  <circle cx="11" cy="58" r="1.8" fill="#e07100"/>
+                  <rect x="15" y="56.5" width="14" height="3" rx="1.5" fill="#4b4b59"/>
+                  <rect x="10" y="63" width="44" height="2.5" rx="1.25" fill="#a3a6b0"/>
+                  <rect x="10" y="67.5" width="30" height="2.5" rx="1.25" fill="#d9dbe0"/>
+                  <rect x="60" y="61" width="10" height="9" rx="2" fill="#f3dccb"/>
+                  <rect x="6" y="77" width="68" height="20" rx="5" fill="#fff"/>
+                  <circle cx="11" cy="82" r="1.8" fill="#f4b082"/>
+                  <rect x="15" y="80.5" width="18" height="3" rx="1.5" fill="#4b4b59"/>
+                  <rect x="10" y="87" width="40" height="2.5" rx="1.25" fill="#a3a6b0"/>
+                  <rect x="10" y="91.5" width="28" height="2.5" rx="1.25" fill="#d9dbe0"/>
+                  <rect x="60" y="85" width="10" height="9" rx="2" fill="#dbe4ef"/>
+                  <circle cx="87" cy="9.5" r="2" fill="#ec8f4a"/>
+                  <rect x="91" y="7.8" width="20" height="3.5" rx="1.75" fill="#1a1a24"/>
+                  <rect x="86" y="14" width="30" height="2" rx="1" fill="#c4c7d0"/>
+                  <rect x="80.4" y="19.6" width="79.6" height=".6" fill="#e5e5ea"/>
+                  <g fill="#a3a6b0">
+                    <rect x="91" y="25" width="46" height="2.5" rx="1.25"/><rect x="91" y="39" width="42" height="2.5" rx="1.25"/>
+                    <rect x="91" y="53" width="46" height="2.5" rx="1.25"/><rect x="91" y="67" width="40" height="2.5" rx="1.25"/>
+                    <rect x="91" y="81" width="44" height="2.5" rx="1.25"/><rect x="91" y="95" width="42" height="2.5" rx="1.25"/>
+                  </g>
+                  <g fill="#d9dbe0">
+                    <rect x="91" y="29.5" width="30" height="2.5" rx="1.25"/><rect x="91" y="43.5" width="26" height="2.5" rx="1.25"/>
+                    <rect x="91" y="57.5" width="32" height="2.5" rx="1.25"/><rect x="91" y="71.5" width="24" height="2.5" rx="1.25"/>
+                    <rect x="91" y="85.5" width="30" height="2.5" rx="1.25"/>
+                  </g>
+                  <g fill="#e07100"><rect x="85" y="25" width="3" height="5" rx="1"/><rect x="85" y="39" width="3" height="5" rx="1"/><rect x="85" y="53" width="3" height="5" rx="1"/></g>
+                  <g fill="#c4c7d0"><rect x="85" y="67" width="3" height="5" rx="1"/><rect x="85" y="81" width="3" height="5" rx="1"/><rect x="85" y="95" width="3" height="5" rx="1"/></g>
+                  <g fill="#f3dccb"><rect x="143" y="24" width="11" height="9" rx="2"/><rect x="143" y="52" width="11" height="9" rx="2"/><rect x="143" y="80" width="11" height="9" rx="2"/></g>
+                  <g fill="#dbe4ef"><rect x="143" y="38" width="11" height="9" rx="2"/><rect x="143" y="66" width="11" height="9" rx="2"/><rect x="143" y="94" width="11" height="9" rx="2"/></g>
+                </g>
+              </svg>
+              <span class="size-name">小</span>
+              <span class="size-desc">記事を広く表示<br>世界全体を小さく</span>
+            </span>
+          </label>
+          <label class="size-opt">
+            <input type="radio" name="map-size" value="large">
+            <span class="size-box">
+              <svg class="size-art art-compact" viewBox="0 0 120 128" aria-hidden="true">
+                <defs>
+                  <clipPath id="art-cl"><rect width="120" height="128" rx="9"/></clipPath>
+                  <clipPath id="art-cl-map"><rect y="24" width="120" height="62"/></clipPath>
+                </defs>
+                <g clip-path="url(#art-cl)">
+                  <rect width="120" height="128" fill="#eceef2"/>
+                  <rect x="9" y="8" width="36" height="6" rx="3" fill="#1a1a24"/>
+                  <rect x="9" y="17" width="20" height="3" rx="1.5" fill="#c4c7d0"/>
+                  <rect y="24" width="120" height="62" fill="#dfe9f4"/>
+                  <g clip-path="url(#art-cl-map)"><g class="art-map" transform="translate(-31.3 13.22) scale(.1826)"/></g>
+                  <rect x="107" y="66" width="8" height="15" rx="2.5" fill="#fff"/>
+                  <path d="M109.4 70h3.2M111 68.4v3.2M109.4 77.5h3.2" stroke="#1a1a24" stroke-width=".9" stroke-linecap="round"/>
+                  <rect x="7" y="92" width="106" height="16" rx="5" fill="#fff"/>
+                  <rect x="12" y="96" width="64" height="3" rx="1.5" fill="#a3a6b0"/>
+                  <rect x="12" y="101.5" width="44" height="3" rx="1.5" fill="#d9dbe0"/>
+                  <rect x="95" y="94.5" width="13" height="11" rx="3" fill="#f3dccb"/>
+                  <rect x="7" y="112" width="106" height="16" rx="5" fill="#fff"/>
+                  <rect x="12" y="116" width="58" height="3" rx="1.5" fill="#a3a6b0"/>
+                  <rect x="12" y="121.5" width="40" height="3" rx="1.5" fill="#d9dbe0"/>
+                  <rect x="95" y="114.5" width="13" height="11" rx="3" fill="#dbe4ef"/>
+                </g>
+              </svg>
+              <svg class="size-art art-wide" viewBox="0 0 160 100" aria-hidden="true">
+                <defs>
+                  <clipPath id="art-wl"><rect width="160" height="100" rx="8"/></clipPath>
+                  <clipPath id="art-wl-map"><rect y="16" width="160" height="40"/></clipPath>
+                </defs>
+                <g clip-path="url(#art-wl)">
+                  <rect width="160" height="100" fill="#eceef2"/>
+                  <rect x="80" y="56" width="80" height="44" fill="#fff"/>
+                  <rect x="79.6" y="56" width=".8" height="44" fill="#dcdfe5"/>
+                  <rect x="7" y="7" width="28" height="5" rx="2.5" fill="#1a1a24"/>
+                  <rect x="38" y="8" width="14" height="3" rx="1.5" fill="#c4c7d0"/>
+                  <rect y="16" width="160" height="40" fill="#dfe9f4"/>
+                  <g clip-path="url(#art-wl-map)"><g class="art-map" transform="translate(0 -.6) scale(.16)"/></g>
+                  <rect x="150" y="39" width="6" height="13" rx="2" fill="#fff"/>
+                  <rect x="6" y="61" width="68" height="20" rx="5" fill="#fff"/>
+                  <circle cx="11" cy="66" r="1.8" fill="#e07100"/>
+                  <rect x="15" y="64.5" width="14" height="3" rx="1.5" fill="#4b4b59"/>
+                  <rect x="10" y="71" width="44" height="2.5" rx="1.25" fill="#a3a6b0"/>
+                  <rect x="10" y="75.5" width="30" height="2.5" rx="1.25" fill="#d9dbe0"/>
+                  <rect x="60" y="69" width="10" height="9" rx="2" fill="#f3dccb"/>
+                  <rect x="6" y="85" width="68" height="20" rx="5" fill="#fff"/>
+                  <circle cx="11" cy="90" r="1.8" fill="#f4b082"/>
+                  <rect x="15" y="88.5" width="18" height="3" rx="1.5" fill="#4b4b59"/>
+                  <circle cx="87" cy="62" r="2" fill="#ec8f4a"/>
+                  <rect x="91" y="60.3" width="20" height="3.5" rx="1.75" fill="#1a1a24"/>
+                  <rect x="80.4" y="68.6" width="79.6" height=".6" fill="#e5e5ea"/>
+                  <g fill="#a3a6b0"><rect x="91" y="74" width="46" height="2.5" rx="1.25"/><rect x="91" y="88" width="42" height="2.5" rx="1.25"/></g>
+                  <g fill="#d9dbe0"><rect x="91" y="78.5" width="30" height="2.5" rx="1.25"/><rect x="91" y="92.5" width="26" height="2.5" rx="1.25"/></g>
+                  <g fill="#e07100"><rect x="85" y="74" width="3" height="5" rx="1"/><rect x="85" y="88" width="3" height="5" rx="1"/></g>
+                  <rect x="143" y="73" width="11" height="9" rx="2" fill="#f3dccb"/>
+                  <rect x="143" y="87" width="11" height="9" rx="2" fill="#dbe4ef"/>
+                </g>
+              </svg>
+              <span class="size-name">大</span>
+              <span class="size-desc">地図を大きく表示<br>指で動かせる</span>
+            </span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section id="s-matome" class="s-group" aria-labelledby="s-matome-h">
+      <h2 id="s-matome-h" class="s-label">まとめ</h2>
+      <div class="s-card">
+        <label class="s-row">
+          <span class="s-text"><b>記事をアプリ内で開く</b><small>広告を省いて、読みやすく表示します</small></span>
+          <input type="checkbox" id="opt-reader" class="switch" role="switch">
+        </label>
+        <label class="s-row">
+          <span class="s-text"><b>既読の記事を隠す</b><small>一度開いた記事を一覧に出しません</small></span>
+          <input type="checkbox" id="opt-hide-read" class="switch" role="switch">
+        </label>
+      </div>
+      <div class="s-card s-pad">
+        <label class="s-title" for="ng-words">NGワード</label>
+        <p class="s-note">含まれる記事を表示しません。カンマか改行で区切ります</p>
+        <textarea id="ng-words" rows="3" placeholder="例: 広告, PR"></textarea>
+      </div>
+      <div class="s-card">
+        <div class="s-pad">
+          <h3 class="s-title">表示するサイト</h3>
+          <p class="s-note">オフにしたサイトの記事は一覧に出しません</p>
+        </div>
+        <div id="site-toggles" class="s-list"><p class="s-empty">サイトの一覧を読み込み中…</p></div>
+      </div>
+      <div class="s-card">
+        <button type="button" id="btn-clear-read" class="s-row s-danger">
+          <span class="s-text"><b>既読履歴をリセット</b><small id="clear-read-note">まとめの記事の既読の印をすべて消します</small></span>
+        </button>
+      </div>
+    </section>
+
+    <section id="s-about" class="s-group" aria-labelledby="s-about-h">
+      <h2 id="s-about-h" class="s-label">このアプリについて</h2>
+      <div class="s-card">
+        <div class="s-row s-info"><span class="s-text"><b>バージョン</b></span><span id="s-ver" class="s-val"></span></div>
+        <div class="s-row s-info"><span class="s-text"><b>地図データ</b></span><span class="s-val">Natural Earth</span></div>
+      </div>
+    </section>
+  </div>
+</section>
 </div>
 
 <nav id="tabbar" aria-label="画面の切り替え">
@@ -123,6 +315,10 @@
   <a href="#/matome" data-tab="matome">
     <span class="tab-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 12.5h8M8 16h5"/></svg></span>
     <span>まとめ</span>
+  </a>
+  <a href="#/settings" data-tab="settings">
+    <span class="tab-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.44 5.49L10.67 3.1L13.33 3.1L13.56 5.49A6.7 6.7 0 0 1 15.5 6.29L17.35 4.77L19.23 6.65L17.71 8.5A6.7 6.7 0 0 1 18.51 10.44L20.9 10.67L20.9 13.33L18.51 13.56A6.7 6.7 0 0 1 17.71 15.5L19.23 17.35L17.35 19.23L15.5 17.71A6.7 6.7 0 0 1 13.56 18.51L13.33 20.9L10.67 20.9L10.44 18.51A6.7 6.7 0 0 1 8.5 17.71L6.65 19.23L4.77 17.35L6.29 15.5A6.7 6.7 0 0 1 5.49 13.56L3.1 13.33L3.1 10.67L5.49 10.44A6.7 6.7 0 0 1 6.29 8.5L4.77 6.65L6.65 4.77L8.5 6.29A6.7 6.7 0 0 1 10.44 5.49Z"/><circle cx="12" cy="12" r="2.6"/></svg></span>
+    <span>設定</span>
   </a>
 </nav>
 
@@ -139,30 +335,6 @@
     <p id="reader-meta"></p>
     <div id="reader-content"></div>
     <div id="reader-related"></div>
-  </div>
-</div>
-
-<div id="settings-modal" class="modal" hidden>
-  <div class="modal-box">
-    <div class="modal-head">
-      <h2>設定</h2>
-      <button id="btn-close-settings" aria-label="閉じる">✕</button>
-    </div>
-    <section>
-      <h3>NGワード</h3>
-      <p class="hint">カンマか改行区切り。含まれる記事を非表示にします。</p>
-      <textarea id="ng-words" rows="3" placeholder="例: 広告, PR"></textarea>
-    </section>
-    <section>
-      <h3>表示するサイト</h3>
-      <div id="site-toggles"></div>
-    </section>
-    <section>
-      <h3>その他</h3>
-      <label class="row"><input type="checkbox" id="opt-reader"> 記事をアプリ内で開く(広告カット)</label>
-      <label class="row"><input type="checkbox" id="opt-hide-read"> 既読の記事を隠す</label>
-      <button id="btn-clear-read" class="secondary">既読履歴をリセット</button>
-    </section>
   </div>
 </div>
 

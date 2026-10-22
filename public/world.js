@@ -2,7 +2,7 @@
 
 // 世界地図から地域別の話題ニュースを見る「ワールド」画面。
 // world-map.json (地図の形・ラベル位置・拡大範囲) と world.json (地域ごとの話題TOP10) を表示する。
-// 画面の切り替えは URL のハッシュで行う: #/world → #/world/<地域> → #/world/<地域>/<記事ID>、#/matome
+// 画面の切り替えは URL のハッシュで行う: #/world → #/world/<地域> → #/world/<地域>/<記事ID>、#/matome、#/settings
 (() => {
   const $ = (id) => document.getElementById(id);
   const SVG_NS = "http://www.w3.org/2000/svg";
@@ -38,7 +38,8 @@
     minus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>',
   };
 
-  const TAB_ORDER = ["world", "matome"]; // 下のタブの並び (左から)
+  const TAB_ORDER = ["world", "matome", "settings"]; // 下のタブの並び (左から)
+  const VIEW_IDS = { world: "view-world", matome: "view-matome", settings: "view-settings" }; // タブごとの画面
   const wide = matchMedia("(min-width: 600px)");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -120,7 +121,7 @@
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
 
-  const viewEl = (view) => $(view === "world" ? "view-world" : "view-matome");
+  const viewEl = (view) => $(VIEW_IDS[view]);
   const regionOf = (id) =>
     world?.regions.find((r) => r.id === id) ?? { id, name: REGION_NAMES[id], heat: 0, items: [] };
   // 盛り上がりが一番大きい地域 (広い画面で最初に右側へ出す)
@@ -686,13 +687,13 @@
 
   function parseHash(hash = location.hash) {
     const parts = decodeURIComponent(hash.replace(/^#\/?/, "")).split("/");
-    if (parts[0] === "matome") return { view: "matome", region: null, article: null };
+    if (parts[0] === "matome" || parts[0] === "settings") return { view: parts[0], region: null, article: null };
     const region = REGION_ORDER.includes(parts[1]) ? parts[1] : null;
     return { view: "world", region, article: region ? parts[2] || null : null };
   }
 
-  // 画面ごとのスクロール位置 (ワールドとまとめは同じページのスクロールを使うので、切り替えるときに覚えておく)
-  const scrollPos = { world: 0, matome: 0 };
+  // 画面ごとのスクロール位置 (どのタブも同じページのスクロールを使うので、切り替えるときに覚えておく)
+  const scrollPos = { world: 0, matome: 0, settings: 0 };
   let shownView = null;
 
   function showView() {
@@ -700,8 +701,7 @@
     const before = shownView;
     if (before) scrollPos[before] = window.scrollY;
     const isWorld = route.view === "world";
-    $("view-world").hidden = !isWorld;
-    $("view-matome").hidden = isWorld;
+    for (const [view, id] of Object.entries(VIEW_IDS)) $(id).hidden = view !== route.view;
     document.documentElement.dataset.view = route.view;
     for (const a of document.querySelectorAll("#tabbar a")) {
       if (a.dataset.tab === route.view) a.setAttribute("aria-current", "page");
@@ -843,11 +843,11 @@
 
   // 画面を左右にスワイプしてタブを切り替える。画面は指に合わせて動き、十分に動かすか素早く払うと切り替わる。
   // 地図 (指で動かす)・横にスクロールする場所 (まとめのカテゴリ)・入力欄から始めたときや、
-  // 地域・記事 (狭い画面)・リーダー・設定の画面が開いているときは使わない
+  // 地域・記事 (狭い画面)・リーダーの画面が開いているときは使わない
   let swipe = null; // {x, y, axis, dx, trail: [[時刻, dx], ...]}
 
   function swipeBlocked(target) {
-    if (document.body.classList.contains("w-overlay") || !$("reader").hidden || !$("settings-modal").hidden) return true;
+    if (document.body.classList.contains("w-overlay") || !$("reader").hidden) return true;
     for (let el = target; el && el !== document.body; el = el.parentElement) {
       if (el.matches(".map-stage.pannable, input, textarea")) return true;
       if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true;
@@ -1000,10 +1000,18 @@
         enableGestures(homeMap, $("map-stage"), hideMapHint);
         // 枠の大きさが変わったら (画面の回転・折りたたみの開閉・タブの切り替え)、見ていた範囲を枠に合わせ直す
         new ResizeObserver(() => {
+          if (!$("map-stage").offsetWidth) return; // ほかのタブを表示中で隠れているときは何もしない
           measure(homeMap);
-          setView(homeMap, clampView(homeMap, homeMap.vb));
+          if (homeMap.refit) {
+            // 設定で地図の大きさを変えたあと: 新しい枠の形で、世界全体 (選んでいる地域) を見せ直す
+            homeMap.refit = false;
+            zoomMap(homeMap, homeMap.focus ?? null, false);
+          } else {
+            setView(homeMap, clampView(homeMap, homeMap.vb));
+          }
         }).observe($("map-stage"));
         $("map-hint").hidden = store.get("mapMoved", false);
+        paintSizeArt();
       }
       const res = await fetch(`./world.json?t=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1012,6 +1020,7 @@
       $("w-updated").textContent = `${fmtTime(world.updated)} 更新`;
       $("w-status").hidden = true;
       renderRoute();
+      paintSizeArt();
     } catch {
       if (!world) {
         $("w-status").textContent = "ニュースを読み込めませんでした。通信環境を確認して、右上の更新ボタンを押してください。";
@@ -1031,25 +1040,31 @@
     if (homeMap?.focus) navigate("#/world");
     else if (homeMap) flyTo(homeMap, homeView(homeMap));
   });
-  // 地図の大きさの切り替え ("large": 画面上部の幅いっぱいで指で動かせる / "small": 世界全体を左上のカードに)
+  // 地図の大きさ ("large": 画面上部の幅いっぱいで指で動かせる / "small": 世界全体が見えるカード)。設定の画面で選ぶ
   function applyMapSize() {
     $("view-world").dataset.map = mapSize;
     $("map-stage").classList.toggle("pannable", mapSize === "large");
-    for (const b of $("map-size").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.size === mapSize));
     if (homeMap) homeMap.pannable = mapSize === "large";
   }
-  for (const b of $("map-size").querySelectorAll("button")) {
-    b.addEventListener("click", () => {
-      if (b.dataset.size === mapSize) return;
-      mapSize = b.dataset.size;
+  for (const input of document.querySelectorAll('input[name="map-size"]')) {
+    input.checked = input.value === mapSize;
+    input.addEventListener("change", () => {
+      mapSize = input.value;
       store.set("mapSize", mapSize);
       applyMapSize();
-      if (!homeMap || !world) return;
-      renderRoute(); // 地域名の大きさが変わるので作り直す
-      zoomMap(homeMap, homeMap.focus ?? null, false); // 新しい枠の形に合わせて、世界全体 (選んだ地域) を見せ直す
+      // 地図の枠の形が変わるので、ワールドの画面に戻ったときに見せ直す (地域名はタブを戻るときに作り直される)
+      if (homeMap) homeMap.refit = true;
     });
   }
   applyMapSize();
+
+  // 設定の画面の「地図の大きさ」の見本に、地図の形と今の話題の色を入れる
+  function paintSizeArt() {
+    for (const g of document.querySelectorAll(".art-map")) {
+      if (!g.firstChild) for (const id of REGION_ORDER) g.append(svgEl("path", { d: mapData.regions[id], "data-region": id }));
+      for (const p of g.children) p.setAttribute("fill", heatColor(regionOf(p.dataset.region).heat));
+    }
+  }
 
   $("map-zoom-in").addEventListener("click", () => homeMap && flyTo(homeMap, zoomAround(homeMap, 1 / ZOOM_STEP)));
   $("map-zoom-out").addEventListener("click", () => homeMap && flyTo(homeMap, zoomAround(homeMap, ZOOM_STEP)));
@@ -1070,6 +1085,7 @@
 
   // まとめ画面 (app.js) からも使う
   window.World = {
+    view: () => route.view, // 表示中のタブ ("world" / "matome" / "settings")
     isActive: () => route.view === "world",
     // 地域や記事の画面が全面に重なっている (引っ張って更新を効かせない)
     overlayOpen: () => document.body.classList.contains("w-overlay"),

@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.3.0";
+const APP_VERSION = "2.4.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -69,6 +69,7 @@ async function loadData(manual = false) {
     lastFetched = Date.now();
     renderTabs();
     render();
+    renderSiteToggles();
   } catch (err) {
     if (!data) {
       showStatus(
@@ -371,64 +372,86 @@ moreBtn.onclick = () => {
   render();
 };
 
-// ---- 設定 ----
-const modal = $("settings-modal");
+// ---- 設定 (設定タブの「まとめ」の項目。変えたらすぐに一覧へ反映する) ----
+$("ng-words").value = ngWords.join(", ");
+$("opt-hide-read").checked = hideRead;
+$("opt-reader").checked = inAppReader;
 
-$("btn-settings").onclick = () => {
-  $("ng-words").value = ngWords.join(", ");
-  $("opt-hide-read").checked = hideRead;
-  $("opt-reader").checked = inAppReader;
-  renderSiteToggles();
-  modal.hidden = false;
-};
-
-function closeSettings() {
-  ngWords = $("ng-words").value.split(/[,、\n]/).map((w) => w.trim()).filter(Boolean);
-  hideRead = $("opt-hide-read").checked;
-  inAppReader = $("opt-reader").checked;
-  store.set("ngWords", ngWords);
-  store.set("hideRead", hideRead);
-  store.set("inAppReader", inAppReader);
-  store.set("hiddenSites", [...hiddenSites]);
-  modal.hidden = true;
+// 絞り込みが変わったので、一覧を最初の件数から作り直す
+function refilter() {
   renderLimit = PAGE_SIZE;
   if (data) render();
 }
 
-$("btn-close-settings").onclick = closeSettings;
-modal.addEventListener("click", (e) => {
-  if (e.target === modal) closeSettings();
+function saveNgWords() {
+  const words = $("ng-words").value.split(/[,、\n]/).map((w) => w.trim()).filter(Boolean);
+  if (words.join("\n") === ngWords.join("\n")) return;
+  ngWords = words;
+  store.set("ngWords", ngWords);
+  refilter();
+}
+let ngTimer = 0;
+$("ng-words").addEventListener("input", () => {
+  clearTimeout(ngTimer);
+  ngTimer = setTimeout(saveNgWords, 400); // 打ち終わるのを少し待ってから
+});
+$("ng-words").addEventListener("change", saveNgWords);
+
+$("opt-hide-read").addEventListener("change", (e) => {
+  hideRead = e.target.checked;
+  store.set("hideRead", hideRead);
+  refilter();
+});
+$("opt-reader").addEventListener("change", (e) => {
+  inAppReader = e.target.checked;
+  store.set("inAppReader", inAppReader);
 });
 
+let shownSites = "";
 function renderSiteToggles() {
+  if (!data) return;
+  // 同じサイトの一覧なら作り直さない (自動更新で、操作中のスイッチが作り直されないように)
+  const key = data.sites.map((s) => `${s.name}\t${s.category}`).join("\n");
+  if (key === shownSites) return;
+  shownSites = key;
   const box = $("site-toggles");
   box.textContent = "";
-  if (!data) return;
   for (const site of data.sites) {
     const label = document.createElement("label");
-    label.className = "row";
+    label.className = "s-row";
+    const text = document.createElement("span");
+    text.className = "s-text";
+    const name = document.createElement("b");
+    name.textContent = site.name;
+    const cat = document.createElement("small");
+    cat.textContent = site.category;
+    text.append(name, cat);
     const cb = document.createElement("input");
     cb.type = "checkbox";
+    cb.className = "switch";
+    cb.setAttribute("role", "switch");
     cb.checked = !hiddenSites.has(site.name);
     cb.onchange = () => {
       if (cb.checked) hiddenSites.delete(site.name);
       else hiddenSites.add(site.name);
+      store.set("hiddenSites", [...hiddenSites]);
+      refilter();
     };
-    const name = document.createElement("span");
-    name.textContent = site.name;
-    const cat = document.createElement("span");
-    cat.className = "cat";
-    cat.textContent = site.category;
-    label.append(cb, name, cat);
+    label.append(text, cb);
     box.appendChild(label);
   }
 }
 
+let clearedTimer = 0;
 $("btn-clear-read").onclick = () => {
   readList = [];
   readSet.clear();
   store.set("read", readList);
   if (data) render();
+  const note = $("clear-read-note");
+  note.textContent = "リセットしました";
+  clearTimeout(clearedTimer);
+  clearedTimer = setTimeout(() => { note.textContent = "まとめの記事の既読の印をすべて消します"; }, 2000);
 };
 
 // ---- プルリフレッシュ ----
@@ -445,7 +468,8 @@ $("btn-clear-read").onclick = () => {
 
   window.addEventListener("touchstart", (e) => {
     const onMap = e.target.closest?.(".map-stage.pannable"); // 指で動かせる地図の上では、指は地図を動かすのに使う
-    if (!onMap && atTop(e.target) && modal.hidden && !readerOpen && !window.World?.overlayOpen()) {
+    const onSettings = window.World?.view() === "settings"; // 設定の画面には更新するものがない
+    if (!onMap && !onSettings && atTop(e.target) && !readerOpen && !window.World?.overlayOpen()) {
       startY = e.touches[0].clientY;
       pulled = false;
     } else {
@@ -516,4 +540,5 @@ if ("serviceWorker" in navigator) {
 }
 
 $("app-ver").textContent = `v${APP_VERSION}`;
+$("s-ver").textContent = `v${APP_VERSION}`;
 loadData();

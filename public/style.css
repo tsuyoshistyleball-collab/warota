@@ -344,76 +344,7 @@ body.noscroll { overflow: hidden; }
   background: var(--bg2);
 }
 
-/* settings modal */
-.modal {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
-  background: rgba(0,0,0,.45);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-.modal-box {
-  background: var(--bg);
-  width: 100%;
-  max-width: 560px;
-  max-height: 85vh;
-  overflow-y: auto;
-  border-radius: 16px 16px 0 0;
-  padding: 4px 18px calc(24px + env(safe-area-inset-bottom));
-}
-.modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  background: var(--bg);
-  padding: 12px 0 4px;
-}
-.modal-head h2 { margin: 0; font-size: 17px; }
-.modal-head button {
-  border: 0; background: none; font-size: 18px;
-  color: var(--fg); padding: 6px; cursor: pointer;
-}
-.modal-box section { margin: 14px 0; }
-.modal-box h3 { font-size: 14px; margin: 0 0 6px; }
-.hint { font-size: 12px; color: var(--fg-dim); margin: 0 0 6px; }
-#ng-words {
-  width: 100%;
-  font-size: 16px;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg2);
-  color: var(--fg);
-  resize: vertical;
-}
-#site-toggles { display: flex; flex-direction: column; }
-.row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 2px;
-  font-size: 14px;
-  border-bottom: 1px solid var(--line);
-}
-.row:last-child { border-bottom: 0; }
-.row input { width: 18px; height: 18px; accent-color: var(--accent); }
-.row .cat { margin-left: auto; font-size: 11px; color: var(--fg-dim); }
-.secondary {
-  margin-top: 10px;
-  padding: 10px 16px;
-  font-size: 13px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg2);
-  color: var(--fg);
-  cursor: pointer;
-}
-
-/* ===== 下のタブ (ワールド / まとめ) ===== */
+/* ===== 下のタブ (ワールド / まとめ / 設定) ===== */
 #tabbar {
   position: fixed;
   left: 0;
@@ -484,6 +415,7 @@ body.noscroll { overflow: hidden; }
 /* 横方向の指の動きはタブの切り替え (スワイプ) に使い、縦はこれまで通りスクロールする */
 #view-world,
 #view-matome,
+#view-settings,
 #w-main,
 .pane-scroll { touch-action: pan-y pinch-zoom; }
 
@@ -550,36 +482,6 @@ html[data-view="world"] body { background: var(--surface); }
 }
 .w-head .icon-btn { background: var(--card); box-shadow: var(--shadow-sm); }
 #w-refresh.spinning svg { animation: spin .9s linear infinite; }
-
-/* 地図の大きさの切り替え (見出しの右) */
-.seg {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px 3px 3px 10px;
-  border-radius: 999px;
-  background: var(--card);
-  box-shadow: var(--shadow-sm);
-  color: var(--fg-dim);
-  font-size: 11px;
-  font-weight: 700;
-}
-.seg span { margin-right: 3px; }
-.seg button {
-  min-width: 30px;
-  height: 30px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 999px;
-  background: none;
-  color: var(--fg-dim);
-  font-size: 13px;
-  font-weight: 800;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.seg button[aria-pressed="true"] { background: var(--fg); color: #fff; }
 
 /* 地図 (大: 画面の幅いっぱい。指で動かし、2本指で拡大縮小する) */
 .map-card { position: relative; }
@@ -1329,8 +1231,206 @@ html[data-view="world"] body { background: var(--surface); }
   color: var(--fg-dim);
 }
 
+/* ===== 設定画面 ===== */
+html[data-view="settings"] body { background: var(--surface); }
+
+#view-settings { padding: 0 12px calc(var(--tabbar-h) + 32px + env(safe-area-inset-bottom)); }
+.s-head { padding: calc(14px + env(safe-area-inset-top)) 6px 0; }
+.s-head h1 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: .01em;
+}
+.s-head p { margin: 3px 0 0; font-size: 12px; color: var(--fg-dim); }
+.s-group { min-width: 0; }
+.s-label {
+  margin: 24px 6px 10px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink-2);
+  letter-spacing: .02em;
+}
+.s-card {
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.s-card + .s-card { margin-top: 10px; }
+.s-pad { padding: 14px 16px 16px; }
+.s-title { display: block; margin: 0; font-size: 15px; font-weight: 800; line-height: 1.4; }
+.s-note { margin: 3px 0 0; font-size: 12px; line-height: 1.6; color: var(--fg-dim); }
+
+/* 1行の項目 (左に名前と説明、右にスイッチや値) */
+.s-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px 10px 16px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.s-row + .s-row::before,
+.s-list .s-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  border-top: 1px solid var(--line);
+}
+.s-row:active { background: var(--surface); }
+.s-info { cursor: default; }
+.s-info:active { background: none; }
+.s-text { flex: 1; min-width: 0; }
+.s-text b { display: block; font-size: 15px; font-weight: 700; line-height: 1.45; }
+.s-text small { display: block; margin-top: 2px; font-size: 12px; line-height: 1.5; color: var(--fg-dim); }
+.s-val { flex: none; font-size: 14px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+.s-danger b { color: #c4342b; }
+.s-empty { margin: 0; padding: 0 16px 16px; font-size: 13px; color: var(--fg-dim); }
+
+/* オン・オフのスイッチ */
+.switch {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  margin: 0;
+  border-radius: 999px;
+  background: #d5d6dd;
+  cursor: pointer;
+  transition: background-color .2s;
+}
+.switch::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .25);
+  transition: transform .22s var(--ease);
+}
+.switch:checked { background: var(--heat-4); }
+.switch:checked::before { transform: translateX(20px); }
+
+#ng-words {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px; /* 16px 未満だと iPhone が入力のときに画面を拡大してしまう */
+  line-height: 1.5;
+  resize: vertical;
+}
+#ng-words:focus { outline: none; background: #fff; box-shadow: inset 0 0 0 2px var(--accent-ink); }
+
+/* 地図の大きさ (選んだときの画面の見本付きの2択) */
+.size-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.size-opt {
+  position: relative;
+  display: block;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.size-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.size-box {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 8px 8px 12px;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: box-shadow .2s, background-color .2s, transform .2s var(--ease);
+}
+.size-opt:active .size-box { transform: scale(.98); }
+.size-art { display: block; width: 100%; height: auto; }
+.art-wide { display: none; }
+.art-map path { stroke: #fff; stroke-width: .6; vector-effect: non-scaling-stroke; }
+.size-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 4px 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+/* ラジオボタンの丸 (選ぶと中が塗られる) */
+.size-name::before {
+  content: "";
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #c3c3cb;
+  transition: box-shadow .2s;
+}
+.size-desc { margin: 4px 4px 0; font-size: 12px; line-height: 1.55; color: var(--fg-dim); }
+.size-opt input:checked + .size-box { background: var(--card); box-shadow: inset 0 0 0 2px var(--fg), var(--shadow-md); }
+.size-opt input:checked + .size-box .size-name::before { box-shadow: inset 0 0 0 5.5px var(--fg); }
+
+/* 広い画面では、左にワールドとこのアプリについて、右にまとめ (Galaxy Z Fold の折り目をまたがない) */
+@media (min-width: 600px) {
+  #view-settings {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas: "head head" "world matome" "about matome";
+    align-items: start;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 0 calc(var(--tabbar-h) + 32px + env(safe-area-inset-bottom));
+  }
+  .s-head { grid-area: head; padding: calc(10px + env(safe-area-inset-top)) 20px 0; }
+  .s-head h1 { font-size: 21px; }
+  .s-body { display: contents; }
+  .s-group { padding: 0 16px; }
+  #s-world { grid-area: world; }
+  #s-matome { grid-area: matome; }
+  #s-about { grid-area: about; }
+  .art-compact { display: none; }
+  .art-wide { display: block; }
+}
+@media (min-width: 600px) and (horizontal-viewport-segments: 2) {
+  #view-settings {
+    max-width: none;
+    grid-template-columns: env(viewport-segment-width 0 0) minmax(0, 1fr);
+    column-gap: calc(env(viewport-segment-left 1 0) - env(viewport-segment-right 0 0));
+  }
+}
+
 #view-world a:focus-visible,
 #view-world button:focus-visible,
+#view-settings button:focus-visible,
+.switch:focus-visible,
+.size-opt input:focus-visible + .size-box,
 #tabbar a:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
 
 @media (hover: hover) {
@@ -1410,7 +1510,10 @@ html[data-view="world"] body { background: var(--surface); }
 @media (prefers-reduced-motion: reduce) {
   #w-side,
   #region-view,
-  #article-view { transition: none !important; }
+  #article-view,
+  .switch,
+  .switch::before,
+  .size-box { transition: none !important; }
   .chip.hot .chip-dot::after,
   .rcard.skeleton { animation: none; }
 }
