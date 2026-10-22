@@ -28,8 +28,10 @@ const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 //  v13: やらおん#extended対応でツイート埋め込みを保持 /
 //  v14: アルファルファの.article_bodymore対応 + 画像・動画を本文量として加点 /
 //  v15: 全サイト点検に基づく見直し。レスの集まりから本文を探す、記事タイトル・投稿日・コメント欄・
-//       宣伝リンクの除去、レスの見出しの統一 (class="ph")、<font> を文中のまま表示、YouTube 埋め込み、遅延読み込み画像)
-const ART_VERSION = 15;
+//       宣伝リンクの除去、レスの見出しの統一 (class="ph")、<font> を文中のまま表示、YouTube 埋め込み、遅延読み込み画像 /
+//  v16: 2回目の全サイト点検。レスに見せかけた宣伝・記号付きのリンクの列・共有ボタン・はてブの除去、
+//       共有ボタンの「コメントを見る」で本文を切らない、TikTok・Instagram の埋め込み、空の枠と続きすぎる改行の整理)
+const ART_VERSION = 16;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -68,6 +70,7 @@ export const BODY_SELECTORS = [
   ".article-main", // はちま起稿・オタコム
   ".mainEntryBody", // FC2 の標準テンプレート (続きは .mainEntryMore)
   ".entrybody", // ラビット速報
+  ".entry-main", // 流速VIP (見出しのないレスが並ぶ)
 ];
 // 「続きを読む」以降が別の入れ物になっているブログの、続きの入れ物
 const MORE_SELECTORS = [
@@ -93,7 +96,7 @@ const AD_RE =
 // 本文の入れ物の中にある、本文以外の小さなまとまり (アマゾン等の商品紹介・おすすめ記事・タグ・投稿日や
 // カテゴリの行・記事タイトル・前後の記事への案内など) の class/id 名。各ブログの点検結果から集めたもの
 const JUNK_RE =
-  /(^|[\s_-])(amazon|amaquick|amz|rakuten|moshimo|affiliate|kanren|follow|tags?|category|categories|posted\w*|navigate|navigation|navi|menu|pickup|popular|ninki|osusume|engagement|portallinks|commentlink|commenthead|titlebody|article_title_box\w*|entry-title|post-title|come_cat|article-headline|article-news\w*|kotei_link|rss\w*|sns_bt|kjs|mixture|kiziad|all_article|x-embed-loading-note|article-option|yahoo-ad\w*|lq_st\w*|(?:entry|post|article)-meta)([\s_-]|$)/i;
+  /(^|[\s_-])(amazon|amaquick|amz|rakuten|moshimo|affiliate|kanren|relate\w*|follow|tags?|category|categories|posted\w*|nav|navigate|navigation|navi|menu|pickup|popular|ninki|osusume|engagement|portallinks|commentlink|commenthead|titlebody|article_title_box\w*|entry-title|post-title|come_cat|article-headline|article-news\w*|kotei_link|rss\w*|sns_bt|kjs|mixture|kiziad|all_article|x-embed-loading-note|article-option|yahoo-ad\w*|lq_st\w*|(?:entry|post|article)-meta|(?:entry|article)[-_]?(?:header|footer|date|info|tool\w*)|editentry\w*|a11y-label|screen-reader-text|sr-only|visually-hidden)([\s_-]|$)/i;
 // <font size="1〜7"> の大きさ (本文 1em を基準に、大きすぎないように抑える)
 const FONT_SIZES = {
   1: ".75em", 2: ".85em", 3: "1em", 4: "1.15em", 5: "1.35em", 6: "1.6em", 7: "1.9em",
@@ -166,18 +169,34 @@ function imgSrc(node, base) {
   return null;
 }
 
-// 動画の埋め込み (iframe) は再生できないので、YouTube はサムネイル付きのリンク、ニコニコ動画はリンクにする
+// 動画などの埋め込み (iframe) はアプリの中では再生できないので、元のサイトで見るリンクにする
+// (YouTube はサムネイル付き。ニコニコ動画・TikTok・Instagram は文字だけ)
 function embedLink(node, base, budget) {
   const src = absUrl(node.getAttribute("src") || node.getAttribute("data-src") || node.getAttribute("data-lazy-src"), base) ?? "";
   const yt = src.match(/(?:youtube(?:-nocookie)?\.com\/embed\/|youtu\.be\/)([\w-]{11})/)?.[1];
+  if (yt) return videoCard(`https://www.youtube.com/watch?v=${yt}`, "YouTube", `https://i.ytimg.com/vi/${yt}/hqdefault.jpg`, budget);
   const nico = src.match(/nicovideo\.jp\/watch\/((?:sm|so|nm)\d+)/)?.[1];
-  const href = yt ? `https://www.youtube.com/watch?v=${yt}` : nico ? `https://www.nicovideo.jp/watch/${nico}` : null;
+  if (nico) return videoCard(`https://www.nicovideo.jp/watch/${nico}`, "ニコニコ動画", null, budget);
+  const tiktok = src.match(/tiktok\.com\/(?:embed\/v2|embed|player\/v1)\/(\d{8,})/)?.[1];
+  if (tiktok) return videoCard(`https://www.tiktok.com/embed/v2/${tiktok}`, "TikTok", null, budget);
+  const insta = src.match(/instagram\.com\/(p|reel|tv)\/([\w-]+)/);
+  if (insta) return videoCard(`https://www.instagram.com/${insta[1]}/${insta[2]}/`, "Instagram", null, budget);
+  return "";
+}
+
+function videoCard(href, label, thumb, budget) {
   if (!href || budget.media.has(href)) return "";
   budget.media.add(href);
   budget.used += 250;
-  const thumb = yt ? `<img src="https://i.ytimg.com/vi/${yt}/hqdefault.jpg" loading="lazy" referrerpolicy="no-referrer">` : "";
-  return `<a class="embed-video" href="${esc(href)}" target="_blank" rel="noopener nofollow">${thumb}<span>${yt ? "YouTube" : "ニコニコ動画"}で見る</span></a>`;
+  const img = thumb ? `<img src="${esc(thumb)}" loading="lazy" referrerpolicy="no-referrer">` : "";
+  return `<a class="embed-video${thumb ? "" : " embed-plain"}" href="${esc(href)}" target="_blank" rel="noopener nofollow">${img}<span>${label}で見る</span></a>`;
 }
+
+// 共有ボタン・はてなブックマークなどのリンクと、そのボタンの画像 (本文には要らない)
+const SHARE_LINK_RE =
+  /b\.hatena\.ne\.jp\/(entry|add)|(twitter|x)\.com\/(share|intent)|facebook\.com\/(share|sharer|dialog)|line\.me\/R\/msg|social-plugins\.line\.me|timeline\.line\.me\/social-plugin|getpocket\.com\/(edit|save)|feedly\.com\/i\/subscription|google\.com\/preferences\/source/i;
+const SOCIAL_IMG_RE =
+  /b\.st-hatena\.com|hatena\.ne\.jp\/(entry\/image|images)|platform\.twitter\.com|scdn\.line-apps\.com|social-plugins\.line\.me|widgets\.getpocket\.com|parts\.blog\.livedoor\.jp\/img\/cmn\/google-ps|blogmura\.com\/img|blogranking\.fc2\.com|with2\.net\/img|\/banners?\//i;
 
 // レス構造などのクラス名を残し、リーダー側CSSで元サイト風の見た目を再現できるようにする
 function classAttr(node) {
@@ -221,19 +240,36 @@ function sanitize(node, base, budget, depth = 0) {
 
   if (tag === "IMG") {
     const src = imgSrc(node, base);
-    // 1ピクセルの計測用画像は出さない
+    // 1ピクセルの計測用画像と、共有ボタン・ランキングのバナーの画像は出さない
     if (!src || /^[01]$/.test(node.getAttribute("width") ?? "") || /^[01]$/.test(node.getAttribute("height") ?? "")) return "";
+    if (SOCIAL_IMG_RE.test(src)) return "";
     budget.used += 100;
     return `<img src="${esc(src)}" loading="lazy" referrerpolicy="no-referrer">`;
   }
   if (tag === "BR") return "<br>";
   if (tag === "HR") return "<hr>";
+  if (tag === "BLOCKQUOTE") {
+    // TikTok・Instagram の埋め込みは、元のサイトで見るリンクにする (中の文字は「View this post」などの案内)
+    const cls = node.getAttribute("class") ?? "";
+    if (/tiktok-embed/.test(cls)) {
+      const url = node.getAttribute("cite") || node.querySelector("a[href*='/video/']")?.getAttribute("href");
+      return videoCard(absUrl(url, base), "TikTok", null, budget);
+    }
+    if (/instagram-media/.test(cls)) {
+      const url = node.getAttribute("data-instgrm-permalink") || node.querySelector("a[href*='instagram.com/']")?.getAttribute("href");
+      return videoCard(absUrl(url, base)?.replace(/[?#].*$/, ""), "Instagram", null, budget);
+    }
+  }
 
   let inner = "";
   for (const child of node.childNodes) inner += sanitize(child, base, budget, depth + 1);
 
+  // imgur の埋め込みは画像だけを出す (引用の枠で囲まない)
+  if (tag === "BLOCKQUOTE" && /imgur-embed-pub/.test(node.getAttribute("class") ?? "")) return inner;
   if (tag === "A") {
     const href = absUrl(node.getAttribute("href"), base);
+    // 共有ボタンのリンクと、すぐ上で「〜で見る」のリンクにした動画への重ねてのリンク (「TikTokで開く」など) は出さない
+    if (href && (SHARE_LINK_RE.test(href) || budget.media.has(href))) return "";
     // 動画ファイルへの直リンクはその場で再生できるプレーヤーに変換する
     // (video.twimg.com などはリンクとして開くと403になるため)
     if (href && /\.(mp4|webm)([?#]|$)/i.test(href)) {
@@ -412,6 +448,8 @@ async function enrichImgur(document) {
         if (src) src = src.replace(/&amp;/g, "&");
       }
       if (src && /^https?:\/\//.test(src)) {
+        // 「View post on imgur.com」のリンクは、画像を出すので要らない
+        for (const a of [...bq.querySelectorAll("a")]) a.remove();
         const img = document.createElement("img");
         img.setAttribute("src", src);
         bq.appendChild(img);
@@ -433,18 +471,24 @@ const isCommentBox = (el) => /comment/i.test(`${el.getAttribute?.("class") ?? ""
 
 // アフィリエイト (アマゾン・楽天など) とブログランキングのリンク。まとまりごと宣伝として除く
 const AFFILIATE_RE =
-  /(amazon\.(co\.jp|jp|com)\/|amzn\.(to|asia)|rakuten\.co\.jp|r10\.to|moshimo\.com|a8\.net|valuecommerce|accesstrade|linksynergy|dmm\.co\.jp|dlsite\.com|blogmura\.com|with2\.net|blogranking\.net|ranking\.fc2|mcgm\.sakura\.ne\.jp|amazon-adsystem)/i;
+  /(amazon\.(co\.jp|jp|com)\/|amzn\.(to|asia)|rakuten\.co\.jp|r10\.to|moshimo\.com|a8\.net|valuecommerce|accesstrade|linksynergy|afi-b\.com|felmat\.net|presco\.jp|dmm\.(co\.jp|com)|fanza\.|dlsite\.com|cmoa\.jp|ebookjapan|booklive|mechacomic|bookwalker|blogmura\.com|with2\.net|blogranking\.net|ranking\.fc2|mcgm\.sakura\.ne\.jp|amazon-adsystem)/i;
 // まとめブログの記事・アンテナサイトへのリンク (おすすめ記事の並びの見分けに使う)
-const BLOG_LINK_RE = /\/archives\/|blog-entry-\d+|\/acv\/\d+|[?&]url=http|antenna/i;
+const BLOG_LINK_RE = /\/archives\/|blog-entry-\d+|\/acv\/\d+|[?&]url=http|antenna|matome|2ch-c\.net|\/pick\.cgi|[?&]eid=\d/i;
+// 行の頭と終わりの飾り (【 】 ★ ◆ ※ ▼ 🔥 などの記号・絵文字)
+const DECOR = String.raw`[\s\p{P}\p{S}]*`;
 // それだけで1行になっている案内・宣伝の見出しや、共有ボタンの文字
-const LABEL_RE =
-  /^[\s【［\[〔(（★☆※▽▼▲△■□◆◇●○♪〓▶▷→↓]*(スポンサー?ド?\s*リンク|スポンサー|PR|広告|おすすめ記事|オススメ記事|おすすめ|関連記事|関連リンク|人気記事|注目記事|新着記事|最新記事|今一番注目されている記事.*|やんごとなき人気記事|ピックアップニュース|ピックアップ|他ブログ様新着記事|他サイト様新着記事|みんなが見てる|コメントする|コメントを書く|コメントを投稿する|コメントを見る.*|コメント一覧.*|.{0,12}の?全記事一覧|気になるAmazonの本|直近のコメント数ランキング|記事ランキング.*|人気ページランキング|月間ランキング|この記事が気に入ったら.*|Tweet|ツイート|シェア|はてブ|LINEで送る|Pocket|フォローする)[\s】］\]〕)）!！]*$/i;
+const LABEL_RE = new RegExp(
+  `^${DECOR}(スポンサー?ド?\\s*リンク|スポンサー|PR|広告|おすすめ記事|オススメ記事|おすすめ|関連記事|関連リンク|人気記事|注目記事|新着記事|最新記事|今一番注目されている記事.*|やんごとなき人気記事|ピックアップニュース|ピックアップ|他ブログ様新着記事|他サイト様新着記事|みんなが見てる|コメントする|コメントを書く|コメントを投稿する|コメントを見る.*|コメント一覧.*|.{0,12}の?全記事一覧|気になるAmazonの本|直近のコメント数ランキング|記事ランキング.*|人気ページランキング|月間ランキング|この記事が気に入ったら.*|Tweet|ツイート|シェア|はてブ|LINEで送る|Pocket|フォローする|最新情報をお届けします|(この)?記事を(はてブ|ツイート|シェア|ポスト)(する)?|(この)?(エントリー|記事)をはてなブックマークに追加|みんなのポスト|タイムセール(開催中|実施中)?|元スレ|元記事)${DECOR}$`,
+  "iu",
+);
 // 書き出しがおすすめ記事などの案内で、リンクが多いまとまり
-const PROMO_START_RE =
-  /^[\s【［\[〔(（★☆※▽▼▲△■□◆◇●○♪〓▶▷→↓]*(おすすめ|オススメ|今週のおすすめ|関連記事|関連スレ|あわせて読みたい|合わせて読みたい|人気記事|注目記事|ピックアップ|PICK\s*UP|他ブログ|新着記事|最新記事|タイムセール|お気に入りブログ)/i;
-// 広告の利用の表示・コメント欄の注意書き・トラックバックなど
+const PROMO_START_RE = new RegExp(
+  `^${DECOR}(おすすめ|オススメ|今週のおすすめ|厳選おすすめ|関連記事|関連スレ|あわせて読みたい|合わせて読みたい|人気記事|注目記事|注目ニュース|今読まれている|よく読まれている|ピックアップ|PICK\\s*UP|他ブログ|新着記事|最新記事|タイムセール|お気に入りブログ|イチオシ|一押し)`,
+  "iu",
+);
+// 広告の利用の表示・コメント欄の注意書き・トラックバック・ランキングや登録のお願いなど
 const DISCLAIMER_RE =
-  /(アフィリエイト|広告)を(利用|使用|掲載)しています|投稿されたコメントの内容|誹謗中傷な?投稿|訴訟リスク|コメントは非公開|IP由来の巻き込み規制|トラックバックURL|この記事にトラックバック|応援クリック|ランキングに参加/;
+  /(アフィリエイト|広告)を(利用|使用|掲載)しています|投稿されたコメントの内容|誹謗中傷な?投稿|訴訟リスク|コメントは非公開|IP由来の巻き込み規制|記事に関係のない内容|書き込み禁止などの対応|トラックバックURL|この記事にトラックバック|応援クリック|ランキングに参加|皆様の応援が|励みになります|応援登録|を登録できます/;
 // カテゴリ・タグの一覧ページへのリンク
 const CATEGORY_LINK_RE = /\/(category|categories|tag|tags)\/|\/cat_\d+|archives\/cat_/i;
 // 中身が空になったら消してよい要素 (空の箇条書きの「・」などが残らないように)
@@ -510,6 +554,22 @@ function pickRoots(document) {
   return { roots, via };
 }
 
+// 他の記事・宣伝へのリンクか (レスの「>>12」などの安価や、外部サイトへのリンクは数えない)
+function isPromoLink(a, ctx) {
+  const label = flatText(a.textContent);
+  if (label.startsWith(">>") || label.startsWith("＞＞")) return false;
+  const h = a.getAttribute("href") ?? "";
+  return BLOG_LINK_RE.test(h) || ctx.sameSite(h) || AFFILIATE_RE.test(h);
+}
+
+// 他の記事へのリンクがずらりと並んだまとまりか (記事タイトルらしい長さのリンクが min 本以上で、文字の大半がリンク)
+function isPromoList(el, text, ctx, min, minRatio) {
+  const links = [...el.querySelectorAll("a[href]")];
+  if (links.filter((a) => isPromoLink(a, ctx) && flatText(a.textContent).length >= 8).length < min) return false;
+  const linkText = flatText(links.map((a) => a.textContent).join(""));
+  return linkText.length / Math.max(1, flatText(text).length) >= minRatio;
+}
+
 // 本文以外の小さなまとまりか (記事タイトルの繰り返し・投稿日やカテゴリの行・案内の見出し・宣伝の並びなど)
 function isJunkBlock(el, text, ctx) {
   const flat = flatText(text);
@@ -518,13 +578,23 @@ function isJunkBlock(el, text, ctx) {
   const href = tag === "A" ? el.getAttribute("href") ?? "" : "";
   // コメント数へのリンク・カテゴリやタグの一覧へのリンク
   if (href && (/#comment/i.test(href) || CATEGORY_LINK_RE.test(href))) return true;
+  // 他の記事へのリンクがずらりと並んだまとまり (レスに見せかけた宣伝の本文もここで除く)
+  if (isPromoList(el, text, ctx, 3, 0.6)) return true;
+  // ここから先は決まった書き方の見出し・案内。レスの本文 (「おすすめ」だけの返事など) は対象にしない
+  if (ctx.inPostBody(el)) return false;
   if (LABEL_RE.test(text) || (text.length <= 300 && DISCLAIMER_RE.test(text))) return true;
+  const links = [...el.querySelectorAll("a[href]")];
+  // おすすめ記事などの案内で始まり、リンクの多いまとまり
+  if (PROMO_START_RE.test(text)) {
+    const linkText = flatText(links.map((a) => a.textContent).join(""));
+    const others = links.filter((a) => !/^(>>|＞＞)/.test(flatText(a.textContent)));
+    if (linkText.length >= flat.length * 0.4 && (links.some((a) => isPromoLink(a, ctx)) || others.length >= 2)) return true;
+  }
   // 記事タイトルの繰り返し (本文の前の見出し・タイトル枠)
   const t = ctx.title;
   if (t && flat.length <= t.length + 16 && flat.includes(t.slice(0, 20))) {
     if (/^H[1-4]$/.test(tag) || /title/i.test(marker) || ctx.beforePosts(el)) return true;
   }
-  const links = [...el.querySelectorAll("a[href]")];
   // 投稿日・カテゴリ・コメント数の行
   if (text.length <= 120 && !looksLikeHead(text)) {
     if (/コメント\s*[(（]?\s*\d+\s*[)）]?|\d+\s*コメント|Comments?\s*\(\d+\)/i.test(text)) return true;
@@ -532,26 +602,94 @@ function isJunkBlock(el, text, ctx) {
     if ((text.match(/[│｜]/g) ?? []).length >= 2 && text.length <= 80 && links.length > 0) return true;
     if (META_DATE_RE.test(text) && ((text.length <= 40 && ctx.beforePosts(el)) || /カテゴリ|タグ|記事URL|Edit|posted|投稿者/i.test(text))) return true;
   }
-  if (links.length === 0) return false;
-  const linkText = flatText(links.map((a) => a.textContent).join(""));
-  const ratio = linkText.length / Math.max(1, flat.length);
-  // 他の記事・宣伝へのリンク (レスの「>>12」などの安価や、外部サイトへのリンクは数えない)
-  const promo = links.filter((a) => {
-    const label = flatText(a.textContent);
-    if (label.startsWith(">>") || label.startsWith("＞＞")) return false;
-    const h = a.getAttribute("href") ?? "";
-    return BLOG_LINK_RE.test(h) || ctx.sameSite(h) || AFFILIATE_RE.test(h);
-  });
-  // おすすめ記事などの案内で始まり、リンクの多いまとまり
-  if (PROMO_START_RE.test(text) && ratio >= 0.4 && promo.length > 0) return true;
-  // 他の記事へのリンクがずらりと並んだまとまり
-  const titled = promo.filter((a) => flatText(a.textContent).length >= 8);
-  return titled.length >= 3 && ratio >= 0.6;
+  // 最後のレスより後ろの、短い項目だけの並び (カテゴリの切り替えタブなど)
+  if ((tag === "UL" || tag === "OL") && ctx.afterPosts(el) && links.length === 0 && !el.querySelector("img")) {
+    const items = [...el.children];
+    if (items.length >= 3 && items.every((li) => li.textContent.trim().length <= 15)) return true;
+  }
+  return false;
 }
+
+// 入れ物にじかに並んだ宣伝リンク (「◆<a>他の記事のタイトル</a><br>」の繰り返し) を、3本以上続いたときに除く
+const BULLET_RE = /^[\s◆◇■□●○・★☆▼▽▲△►▶→※♪]*$/;
+function removeLinkRuns(root, ctx) {
+  const promoAnchor = (node) => {
+    if (node.nodeType !== 1) return false;
+    let a = node;
+    // <b><a>…</a></b> のように、リンク1本だけを包んだ飾り
+    while (a.tagName !== "A" && /^(B|STRONG|SPAN|FONT|EM|U)$/.test(a.tagName) && a.children.length === 1 &&
+      flatText(a.textContent) === flatText(a.firstElementChild.textContent)) a = a.firstElementChild;
+    return a.tagName === "A" && isPromoLink(a, ctx) && flatText(a.textContent).length >= 8;
+  };
+  for (const box of [root, ...root.querySelectorAll("*")]) {
+    if (!root.contains(box)) continue;
+    let run = [];
+    let count = 0;
+    const flush = () => {
+      if (count >= 3) for (const n of run) n.remove();
+      run = [];
+      count = 0;
+    };
+    for (const node of [...box.childNodes]) {
+      if (node.nodeType === 8) continue;
+      const t = node.nodeType === 3 ? node.textContent.trim() : "";
+      if ((node.nodeType === 3 && BULLET_RE.test(node.textContent)) || (node.nodeType === 1 && node.tagName === "BR")) {
+        run.push(node);
+      } else if (t && t.length <= 30 && (PROMO_START_RE.test(t) || LABEL_RE.test(t))) {
+        // 「★今週のおすすめ」などの見出しから始まる列は、見出しごと除く
+        flush();
+        run.push(node);
+      } else if (promoAnchor(node)) {
+        run.push(node);
+        count++;
+      } else {
+        flush();
+      }
+    }
+    flush();
+  }
+}
+
+// 共有ボタンの並び (この中の「コメントを見る」はコメント欄の始まりではない)
+const SHARE_BAR_RE = /(^|[\s_-])(share|sns|social|tool\w*|btns?|buttons?)([\s_-]|$)/i;
 
 // 本文の入れ物から、本文以外 (宣伝・記事タイトル・投稿日やカテゴリの行・コメント欄) を取り除く
 function tidy(root, ctx) {
-  // 1) アフィリエイト・ブログランキングのリンクを、レスを含まない小さなまとまりごと除く
+  // レスの見出し (markPostHeads で class="ph" を付けたもの) と、その直後のレスの本文の見分け
+  const prevContent = (node) => {
+    let p = node.previousSibling;
+    while (p && ((p.nodeType === 1 && p.tagName === "BR") || (p.nodeType === 3 && !p.textContent.trim()) || p.nodeType === 8)) {
+      p = p.previousSibling;
+    }
+    return p;
+  };
+  const isHead = (n) => {
+    if (n?.nodeType !== 1) return false;
+    if (n.matches(".ph")) return true;
+    const ph = n.querySelector(".ph");
+    return !!ph && flatText(n.textContent).length <= flatText(ph.textContent).length + 4;
+  };
+  ctx.inPostBody = (el) => {
+    for (let p = el; p && p !== root; p = p.parentElement) if (isHead(prevContent(p))) return true;
+    return false;
+  };
+  // 宣伝の並びなどを除くときは、すぐ前にある見出し (「🔥 今読まれている注目ニュース」など) も一緒に除く
+  const removeBlock = (el) => {
+    const label = prevContent(el);
+    el.remove();
+    if (!label || isHead(label)) return;
+    const t = label.textContent.replace(/\s+/g, " ").trim();
+    if (t && t.length <= 30 && countPosts(t) === 0 && (PROMO_START_RE.test(t) || LABEL_RE.test(t))) label.remove();
+  };
+
+  // 1) レスに見せかけた宣伝 (「1000：」などの見出しの後に、他のまとめ記事へのリンクが並ぶもの)
+  for (const el of [...root.querySelectorAll("*")].reverse()) {
+    if (!root.contains(el)) continue;
+    const text = el.textContent.replace(/\s+/g, " ").trim();
+    if (text.length <= 1500 && countPosts(text) === 1 && isPromoList(el, text, ctx, 3, 0.6)) removeBlock(el);
+  }
+
+  // 2) アフィリエイト・ブログランキングのリンクを、レスを含まない小さなまとまりごと除く
   for (const a of [...root.querySelectorAll("a[href]")]) {
     if (!root.contains(a) || !AFFILIATE_RE.test(a.getAttribute("href") ?? "")) continue;
     let box = a;
@@ -563,11 +701,20 @@ function tidy(root, ctx) {
     box.remove();
   }
 
-  // 2) コメント欄: 「コメントする」などから後ろにレスがなければ、そこから後ろを全部除く
+  // 3) 入れ物にじかに並んだ宣伝リンクの列
+  removeLinkRuns(root, ctx);
+
+  // 4) コメント欄: 「コメントする」などから後ろにレスがなければ、そこから後ろを全部除く
   const all = [...root.querySelectorAll("*")];
+  const inShareBar = (el) => {
+    for (let p = el; p && p !== root; p = p.parentElement) {
+      if (SHARE_BAR_RE.test(`${p.getAttribute("class") ?? ""} ${p.getAttribute("id") ?? ""}`)) return true;
+    }
+    return false;
+  };
   const start = all.findIndex((el) => {
     const t = el.textContent.replace(/\s+/g, " ").trim();
-    return t.length <= 40 && COMMENT_START_RE.test(t);
+    return t.length <= 40 && COMMENT_START_RE.test(t) && !inShareBar(el);
   });
   // (記事の前のほうにある「コメント(0)」などで本文が消えないよう、前に本文がある程度あるときだけ)
   const textBefore = start >= 0 ? all.slice(0, start).reduce((n, el) => n + ownText(el).trim().length, 0) : 0;
@@ -581,11 +728,15 @@ function tidy(root, ctx) {
     }
   }
 
-  // 3) 本文以外の小さなまとまり (内側から順に調べる)
+  // 5) 本文以外のまとまり (内側から順に調べる)
   const rest = [...root.querySelectorAll("*")];
-  const firstPost = rest.findIndex((el) => el.textContent.length < 400 && POST_DATE_RE.test(el.textContent));
+  const isPostHead = (el) => el.textContent.length < 400 && POST_DATE_RE.test(el.textContent);
+  const firstPost = rest.findIndex(isPostHead);
+  const lastPost = rest.findLastIndex(isPostHead);
   const order = new Map(rest.map((el, i) => [el, i]));
-  ctx.beforePosts = (el) => firstPost < 0 ? order.get(el) < 8 : order.get(el) < firstPost;
+  ctx.beforePosts = (el) => (firstPost < 0 ? order.get(el) < 8 : order.get(el) < firstPost);
+  ctx.afterPosts = (el) => lastPost >= 0 && order.get(el) > lastPost && !ctx.inPostBody(el);
+  const rootLen = root.textContent.length;
   for (const el of rest.reverse()) {
     if (!root.contains(el)) continue;
     const text = el.textContent.replace(/\s+/g, " ").trim();
@@ -596,13 +747,21 @@ function tidy(root, ctx) {
       if (isLink || (!media && EMPTY_OK_TAGS.has(el.tagName) && !el.querySelector("br"))) el.remove();
       continue;
     }
-    if (text.length > 400 || countPosts(text) > 0) continue; // レスを含むものは触らない
-    if (isJunkBlock(el, text, ctx)) el.remove();
+    if (countPosts(text) > 0) continue; // レスを含むものは触らない
+    if (text.length > 400) {
+      // 長くても、他の記事へのリンクばかりのまとまり (関連記事・人気記事の一覧) は除く
+      if (text.length <= 3000 && text.length < rootLen * 0.5 && isPromoList(el, text, ctx, 5, 0.7)) removeBlock(el);
+      continue;
+    }
+    if (isJunkBlock(el, text, ctx)) removeBlock(el);
   }
-  // 入れ物に直接書かれた案内の文字 (「スポンサードリンク」など)
+  // 6) 入れ物に直接書かれた案内の文字 (「スポンサードリンク」など。レスの本文は除く)
   for (const el of [root, ...root.querySelectorAll("*")]) {
+    if (el !== root && ctx.inPostBody(el)) continue;
     for (const node of [...el.childNodes]) {
-      if (node.nodeType === 3 && LABEL_RE.test(node.textContent.trim()) && node.textContent.trim()) node.remove();
+      const t = node.textContent.trim();
+      if (node.nodeType !== 3 || !t || isHead(prevContent(node))) continue;
+      if (LABEL_RE.test(t) || (t.length <= 300 && DISCLAIMER_RE.test(t))) node.remove();
     }
   }
 }
@@ -646,6 +805,12 @@ function markPostHeads(root, document) {
           span.setAttribute("class", "ph");
           box.insertBefore(span, node);
           for (const n of run) span.appendChild(n);
+          // 見出しは1行の塊として表示するので、直後の改行は要らない
+          if (sib?.nodeType === 1 && sib.tagName === "BR") {
+            const after = sib.nextSibling;
+            sib.remove();
+            sib = after;
+          }
           node = sib;
           continue;
         }
@@ -653,6 +818,69 @@ function markPostHeads(root, document) {
       node = node.nextSibling;
     }
   }
+}
+
+// ---- 仕上げ (抽出したHTMLの整形) ----
+
+// 区切り文字だけの行 (投稿日やカテゴリを除いた残りの「│ │」「、」など)
+const SEPARATOR_ONLY_RE = /^[\s、,，|｜│/／・:：\-–—_]+$/;
+// それだけで行が分かれる要素 (前後の改行は要らない)。レスの見出しと動画のリンクも1行の塊として表示する
+const BLOCK_LEVEL = new Set([
+  "DIV", "P", "BLOCKQUOTE", "UL", "OL", "LI", "DL", "DT", "DD", "TABLE", "PRE", "HR",
+  "H1", "H2", "H3", "H4", "H5", "H6", "FIGURE", "FIGCAPTION", "VIDEO",
+]);
+const isBlockLevel = (n) =>
+  n?.nodeType === 1 && (BLOCK_LEVEL.has(n.tagName) || /(^|\s)(ph|embed-video)(\s|$)/.test(n.getAttribute("class") ?? ""));
+const isBreak = (n) => n.nodeType === 1 && (n.tagName === "BR" || n.tagName === "HR");
+const isBlankText = (n) => (n.nodeType === 3 && !n.textContent.trim()) || n.nodeType === 8;
+
+// 中身のなくなった入れ物 (広告を除いた後の空の表・枠など) と、区切り文字だけの行を除く
+function dropEmpty(root) {
+  for (const el of [...root.querySelectorAll("*")].reverse()) {
+    if (/^(IMG|BR|HR|VIDEO|TD|TH|TR|THEAD|TBODY)$/.test(el.tagName) || el.querySelector("img, video")) continue;
+    const text = el.textContent.trim();
+    if (!text || (text.length <= 12 && SEPARATOR_ONLY_RE.test(text) && el.tagName !== "SPAN")) el.remove();
+  }
+}
+
+// 改行の連続をまとめる。入れ物の最初と最後・ブロック要素の前後の改行は消し、文中の改行は2つ (空行1つ) まで。
+// 区切り線 (<hr>) は1本にする。文中の飾り (<b> など) の中の改行は、外の文字との区切りなので消さない
+function tidyBreaks(root) {
+  for (const box of [root, ...root.querySelectorAll("*")]) {
+    const blockBox = box === root || isBlockLevel(box);
+    const kids = [...box.childNodes];
+    for (let i = 0; i < kids.length; i++) {
+      if (!isBreak(kids[i])) continue;
+      let j = i;
+      const run = [];
+      while (j < kids.length && (isBreak(kids[j]) || isBlankText(kids[j]))) {
+        if (isBreak(kids[j])) run.push(kids[j]);
+        j++;
+      }
+      let p = i - 1;
+      while (p >= 0 && isBlankText(kids[p])) p--;
+      const prev = p >= 0 ? kids[p] : null;
+      const next = j < kids.length ? kids[j] : null;
+      const hr = run.find((n) => n.tagName === "HR");
+      let keep = run.slice(0, 2);
+      if (blockBox && (!prev || !next)) keep = [];
+      else if (hr) keep = [hr];
+      else if (isBlockLevel(prev) || isBlockLevel(next)) keep = [];
+      for (const n of run) if (!keep.includes(n)) n.remove();
+      i = j - 1;
+    }
+  }
+}
+
+function polish(html) {
+  const { document } = parseHTML(`<!doctype html><html><body><div id="polish-root">${html}</div></body></html>`);
+  const root = document.getElementById("polish-root");
+  // 空の入れ物を消すと改行が隣り合い、改行を消すと入れ物が空になることがあるので2回ずつ
+  for (let round = 0; round < 2; round++) {
+    dropEmpty(root);
+    tidyBreaks(root);
+  }
+  return root.innerHTML.trim();
 }
 
 export async function extract(html, url, title = "") {
@@ -681,15 +909,13 @@ export async function extract(html, url, title = "") {
 
   const sanitizeRoots = (rootsArr) => {
     for (const root of rootsArr) {
-      tidy(root, ctx);
+      // 先にレスの見出しに印を付けておき、整理のときにレスの本文を見分けられるようにする
       markPostHeads(root, root.ownerDocument);
+      tidy(root, ctx);
     }
     const rootLen = rootsArr.reduce((n, r) => n + r.textContent.length, 0);
     const budget = { used: 0, media: new Set(), rootLen };
-    return rootsArr
-      .map((root) => sanitize(root, url, budget))
-      .join("")
-      .trim();
+    return polish(rootsArr.map((root) => sanitize(root, url, budget)).join(""));
   };
   const textOf = (s) => s.replace(/<[^>]*>/g, "").trim();
   // 本文量の評価は文字数 + 画像/動画も加点する

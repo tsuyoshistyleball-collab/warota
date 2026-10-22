@@ -144,4 +144,130 @@ test("レスの本文の中の「>>12」や外部リンク・短い返事は残�
   );
   const text = textOf(html);
   assert.ok(text.includes("そうだね") && text.includes("&gt;&gt;4") && text.includes("ソース"));
+  assert.ok(text.includes("おすすめ"), "「おすすめ」だけの返事も残す");
+});
+
+test("なんJスタジアム: 「1000：」のレスに見せかけたアンテナサイトのリンク集を除く", { skip }, async () => {
+  const fake = `<blockquote><div>1000 ：<span style="color:green">なんじぇいスタジアム</span><span> 2014/11/30(日) 00:00:00</span><span><b><br><br>${
+    ["matomeantena.com/feed/1", "nullpoantenna.com/feed/2", "matomeantena.com/feed/3"].map((h, i) =>
+      `<span class="text"><a href="https://${h}">他のまとめサイトの記事のタイトル${i}</a></span><br><br>`).join("")
+  }</b></span><div><b><a href="https://yakiu-antenna.net/tigers/1.html">阪神の話題の記事のタイトルです</a></b></div><b><br><a href="https://moudamepo.com/pick.cgi?code=1">来季の三冠王候補の記事のタイトル</a></b></div></blockquote><br>`;
+  const html = await run(`<div class="article-body-inner">${posts(3)}<div class="article-body-more">${fake}${posts(4, 4)}</div></div>`);
+  const text = textOf(html);
+  assert.ok(!text.includes("なんじぇいスタジアム") && !text.includes("他のまとめサイト") && !text.includes("三冠王"), text.slice(0, 200));
+  assert.equal((text.match(/ID:abc/g) ?? []).length, 7);
+});
+
+test("キニ速・暇人速報: 「★今週のおすすめ」や「◆」付きで並んだ他サイトの記事へのリンクを除く", { skip }, async () => {
+  const kini = `<blockquote><span><b><span style="color:red">★今週のおすすめ<br>${[1, 2, 3, 4, 5].map((i) =>
+    `<a href="//2ch-c.net/?gt=2026072111260${i}&eid=1113207${i}">【画像】よそのまとめの記事のタイトル${i}</a><br><br>`).join("")}</span></b></span></blockquote>`;
+  const hima = `【おすすめ記事】<br>${[1, 2, 3, 4].map((i) => ` ◆<a href="http://himasoku.com/archives/5229040${i}.html">【悲報】ブログの他の記事のタイトル${i}</a><br>`).join("")}<br>`;
+  const html = await run(
+    `<div class="article-body-inner">${posts(3)}${kini}<div class="article-body-more">${hima}${posts(4, 4)}</div></div>`,
+    "テストの記事のタイトルです",
+    "http://himasoku.com/archives/52290409.html",
+  );
+  const text = textOf(html);
+  assert.ok(!text.includes("今週のおすすめ") && !text.includes("よそのまとめ") && !text.includes("ブログの他の記事") && !text.includes("おすすめ記事"), text.slice(0, 300));
+  assert.equal((text.match(/ID:abc/g) ?? []).length, 7);
+});
+
+test("エレファント速報: レスの集まりの前後にある投稿日・はてブ・人気記事のタブ・カテゴリの切り替えを除く", { skip }, async () => {
+  const dl = Array.from({ length: 8 }, (_, i) =>
+    `<dt>${i + 1}:<span style="color:#008000">それでも動く名無し</span> 2026/03/18(水) 19:09:1${i}.09 ID:lKH${i}</dt><dd><br><span>レスの本文${i}です</span></dd><br><br><br>`).join("");
+  const html = await run(
+    `<div id="main"><div class="article"><h2>【悲報】味噌ラーメンで行列、出来ない</h2>
+      <ul class="info clearfix"><li class="iTime">2026年03月20日 11:20</li><li class="iCategory"><a href="https://elephant.2chblog.jp/archives/cat_1.html">トピック</a>、<a href="https://elephant.2chblog.jp/archives/cat_2.html">グルメ</a></li>
+      <li class="iComment"><a href="https://elephant.2chblog.jp/archives/52378432.html#comments">276 コメント</a></li>
+      <li class="iHtb"><a href="http://b.hatena.ne.jp/entry/https://elephant.2chblog.jp/archives/52378432.html"><img src="http://b.st-hatena.com/images/entry-button/button-only.gif"></a></li>
+      <li class="iTwt"><a href="http://twitter.com/share">Tweet</a></li></ul>${dl}
+      <div>元スレ 【悲報】味噌ラーメンで行列、出来ない https://nova.5ch.io/test/read.cgi/livegalileo/1773828551/</div>
+      <div style="margin:10px"><div><a href="https://b.hatena.ne.jp/entry/https://elephant.2chblog.jp/archives/52378432.html"><img src="https://b.st-hatena.com/images/entry-button/button-only.gif"></a></div></div><br>
+      <div class="tab_area"><p><a href="http://b.hatena.ne.jp/entry/add/https://elephant.2chblog.jp/archives/52378432.html">記事をはてブする</a></p></div>
+      <ul><li>「すべて」</li><li>「不思議」</li><li>「デレマス」</li><li>「ガルパン」</li><li>「艦これ」</li></ul></div>
+      <div id="side">${Array.from({ length: 10 }, (_, i) => `<p>サイドバーの文章${i}</p>`).join("")}</div></div>`,
+    "【悲報】味噌ラーメンで行列、出来ない",
+    "https://elephant.2chblog.jp/archives/52378432.html",
+  );
+  const text = textOf(html);
+  for (const junk of ["2026年03月20日", "トピック", "コメント", "Tweet", "はてブ", "「すべて」", "サイドバー"]) assert.ok(!text.includes(junk), junk);
+  assert.ok(!html.includes("hatena") && !html.includes("<ul") && text.includes("レスの本文7") && text.includes("元スレ"));
+});
+
+test("カラパイア: 本文の途中にある共有ボタンの「コメントを見る」で、後ろの本文を消さない", { skip }, async () => {
+  const html = await run(
+    `<div class="entry-content"><figure><a href="https://karapaia.com/archives/1.html/01"><img src="https://karapaia.com/a.jpg"><span class="wp-block-image__a11y-label">この画像を大きなサイズで見る</span></a><figcaption>Image credit:x</figcaption></figure>
+      <p>${"前半の本文です。".repeat(30)}</p>
+      <dl class="share-btns"><dt>記事をシェア</dt><dd><a href="#">みんなのポスト</a></dd><dd><a href="#comments">コメント</a><a href="#respond">コメントを書く</a><a href="#comments">コメントを見る</a></dd></dl>
+      <h2>見出し</h2><p>${"後半の本文です。".repeat(30)}</p></div>`,
+  );
+  const text = textOf(html);
+  assert.ok(text.includes("後半の本文です") && text.includes("見出し"), "後半が残る");
+  assert.ok(!text.includes("この画像を大きなサイズで見る") && !text.includes("記事をシェア") && !text.includes("コメント"));
+});
+
+test("仕上げ: 空になった表・区切り文字だけの行・続きすぎる改行を整え、文中の改行は残す", { skip }, async () => {
+  const html = await run(
+    `<div class="article-body-inner"><br><br>${posts(5)}<br><br><br><br>
+      <div class="akares"><table><tr><td> </td><td><script>ad()</script></td></tr></table></div>
+      <div class="article-title-date"><table><tr><td><a href="http://b.hatena.ne.jp/entry/x"><img src="http://b.hatena.ne.jp/entry/image/x"></a></td><td>│</td><td>│</td></tr></table></div>
+      <p>${"一行目の文章です。".repeat(10)}<br><br><br><br><br>二行目<b>太字<br></b>続きの文章<hr><hr><br><hr></p><hr><br></div>`,
+  );
+  assert.ok(!html.includes("<table") && !html.includes("│") && !html.includes("hatena"), html.slice(-400));
+  assert.ok(!/(<br>\s*){3}/.test(html), "改行は2つまで");
+  assert.ok(html.includes("太字<br></b>続き"), "文中の飾りの中の改行は残す");
+  assert.ok(!/^<div class="article-body-inner">\s*<br>/.test(html) && !/<hr>\s*<\/div>$/.test(html), "最初と最後の改行・区切り線は消す");
+  assert.ok(!/(<hr>\s*){2}/.test(html), "区切り線は1本に");
+});
+
+test("はちま起稿・パンドラの憂鬱: 前後の記事への案内・関連記事の一覧・応援のお願いを除く", { skip }, async () => {
+  const nav = `<ul class="article-nav"><li class="article-nav-list"><a href="http://blog.esuteru.com/archives/2.html">次の記事のタイトルです</a></li></ul>`;
+  const relate = `<dl class="relate_dl"><dt>関連記事</dt><dd><ul class="relate_ul">${[1, 2, 3].map((i) => `<li class="relate_li"><a href="https://pandora11.com/blog-entry-${i}.html">海外「関連記事のタイトル${i}」</a></li>`).join("")}</ul></dd></dl>`;
+  const hachima = textOf(await run(`<div class="article-main"><div class="article-body-more" id="more"><p>${"本文の文章です。".repeat(30)}</p></div>${nav}${nav}</div>`));
+  assert.ok(hachima.includes("本文の文章です") && !hachima.includes("次の記事"), hachima.slice(-100));
+  const pandora = textOf(await run(`<div class="ently_text">${"海外の反応の本文です。<br>".repeat(30)}${relate}<br>↑皆様の応援が、皆様が考えている以上に励みになります。<br><br></div>`));
+  assert.ok(pandora.includes("海外の反応の本文です") && !pandora.includes("関連記事のタイトル") && !pandora.includes("皆様の応援"), pandora.slice(-100));
+});
+
+test("TikTok・Instagram の埋め込みは元のサイトで見るリンクに、imgur は画像だけに", { skip }, async () => {
+  const html = await run(
+    `<div class="article-body-inner"><p>${"本文の文章です。".repeat(20)}</p>
+      <blockquote class="tiktok-embed" cite="https://www.tiktok.com/@bbcnews/video/7698491756651875606" data-video-id="7698491756651875606"><section><a href="https://www.tiktok.com/@bbcnews">@bbcnews</a> 説明文 <a href="https://www.tiktok.com/music/x">♬ original sound</a></section></blockquote>
+      <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/p/AbC123/"><a href="https://www.instagram.com/p/AbC123/">View this post on Instagram</a></blockquote>
+      <blockquote class="imgur-embed-pub" data-id="a1b2c3"><a href="https://imgur.com/a1b2c3">View post on imgur.com</a></blockquote></div>`,
+  );
+  assert.ok(html.includes('href="https://www.tiktok.com/@bbcnews/video/7698491756651875606"') && html.includes("TikTokで見る"));
+  assert.ok(html.includes('href="https://www.instagram.com/p/AbC123/"') && html.includes("Instagramで見る"));
+  assert.ok(!html.includes("original sound") && !html.includes("View this post") && !html.includes("View post on imgur"));
+  assert.ok(html.includes('src="https://i.imgur.com/a1b2c3.jpg"') && !html.includes("imgur-embed-pub"));
+});
+
+test("流速VIP: 見出しのないレスが並ぶ .entry-main を本文にする", { skip }, async () => {
+  const res = Array.from({ length: 20 }, (_, i) => `<div class="res me2 nest${i % 3}"><p>${i ? `<span class="anchor">&gt;&gt;${i}</span><br>` : ""}レスの本文その${i}です。少し長めに書いておきます。</p></div>`).join("");
+  const html = await run(
+    `<main id="primary"><article id="content"><h1>タイトル</h1><div class="entry-main">${res}<p><span class="topic">引用元</span><span>無題</span></p></div></article>
+      <div class="primary-widget">厳選おすすめまとめ！ ${Array.from({ length: 8 }, (_, i) => `<a href="https://example.com/archives/${i}.html">他の記事${i}</a>`).join("")}</div></main>`,
+  );
+  const text = textOf(html);
+  assert.ok(text.includes("レスの本文その0") && text.includes("レスの本文その19") && text.includes("引用元"));
+  assert.ok(!text.includes("厳選おすすめ") && html.includes('class="res me2 nest1"'));
+});
+
+test("おーるじゃんる: 本文の中の「今読まれている注目ニュース」・最後のリンク集・応援登録のお願いを除く", { skip }, async () => {
+  const card = `<div class="f1link-card"><div class="f1link-label"><span>🔥 今読まれている注目ニュース</span></div><ul class="linklist f1link-list">${[
+    "https://moudamepo.com/pick.cgi?code=2763&cate=10",
+    "https://newmofu.doorblog.jp/archives/60113341.html?url=x",
+    "https://newmofu.doorblog.jp/archives/60113291.html?url=y",
+  ].map((h, i) => `<li><a href="${h}"><b>注目ニュースの記事のタイトルその${i}</b></a></li>`).join("")}</ul></div>`;
+  const list = `<div><ul>${Array.from({ length: 12 }, (_, i) => `<li><a href="https://newpuru.doorblog.jp/archives/6356209${i}.html?id=1">【悲報】よそのまとめブログの長い記事のタイトルその${i}です</a></li>`).join("")}<li><a href="https://crx7601.com/">トップページに戻る</a></li></ul></div>`;
+  const html = await run(
+    `<div class="article-body-inner"><div class="t_h">1: マックライオン(東京都) [IT] 2026/10/22(木) 13:21:25.82 ID:nkr3</div><div class="t_b">最初のレスの本文です。${card}</div>${posts(6, 2)}${list}
+      <p>引用元: <a href="https://hayabusa9.5ch.io/news/1792642885">元のスレのタイトル</a></p>
+      <figure><div>【応援登録のお願い】</div><a href="https://google.com/preferences/source?q=crx7601.com"><img src="https://parts.blog.livedoor.jp/img/cmn/google-ps/dark.png"></a><div>Google検索で「おーるじゃんる」を登録できます。<br>いつも読んでくださる方は、よろしければ応援登録をお願いします。</div></figure></div>`,
+    "テストの記事のタイトルです",
+    "https://crx7601.com/archives/63562393.html",
+  );
+  const text = textOf(html);
+  for (const junk of ["注目ニュース", "よそのまとめブログ", "トップページ", "応援登録", "Google検索"]) assert.ok(!text.includes(junk), junk);
+  assert.ok(text.includes("最初のレスの本文") && text.includes("元のスレのタイトル") && (text.match(/ID:abc/g) ?? []).length === 6);
 });
