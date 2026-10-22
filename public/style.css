@@ -551,7 +551,38 @@ html[data-view="world"] body { background: var(--surface); }
 .w-head .icon-btn { background: var(--card); box-shadow: var(--shadow-sm); }
 #w-refresh.spinning svg { animation: spin .9s linear infinite; }
 
-/* 地図 (画面の幅いっぱい。指で動かし、2本指で拡大縮小する) */
+/* 地図の大きさの切り替え (見出しの右) */
+.seg {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 3px 3px 10px;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  color: var(--fg-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+.seg span { margin-right: 3px; }
+.seg button {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--fg-dim);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.seg button[aria-pressed="true"] { background: var(--fg); color: #fff; }
+
+/* 地図 (大: 画面の幅いっぱい。指で動かし、2本指で拡大縮小する) */
+.map-card { position: relative; }
 .map-stage {
   position: relative;
   height: clamp(220px, 30dvh, 340px);
@@ -559,12 +590,12 @@ html[data-view="world"] body { background: var(--surface); }
   background: #dfe9f4; /* 地図の外側も海の色にして、図法の縁を目立たせない */
   container-type: inline-size;
   isolation: isolate;
-  touch-action: none; /* 指の操作はページのスクロールではなく地図の移動に使う */
   user-select: none;
   -webkit-user-select: none;
-  cursor: grab;
 }
-.map-stage:active { cursor: grabbing; }
+/* 指で動かせる地図では、指の操作をページのスクロールやタブのスワイプではなく地図の移動に使う */
+.map-stage.pannable { touch-action: none; cursor: grab; }
+.map-stage.pannable:active { cursor: grabbing; }
 .map-svg {
   position: absolute;
   inset: 0;
@@ -720,11 +751,15 @@ html[data-view="world"] body { background: var(--surface); }
   stroke: currentColor;
   stroke-width: 1.8;
 }
-.map-legend {
+.map-foot {
   position: absolute;
   left: 10px;
   bottom: 10px;
   z-index: 2;
+  pointer-events: none;
+}
+.map-tip { display: none; }
+.map-legend {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -772,6 +807,49 @@ html[data-view="world"] body { background: var(--surface); }
   stroke-width: 2.2;
   stroke-linecap: round;
 }
+/* 地図 (小: 世界全体が見えるカード。タップで地域を選ぶだけで、指では動かさない) */
+#view-world[data-map="small"] .map-card {
+  margin: 0 12px;
+  padding: 6px;
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+}
+#view-world[data-map="small"] .map-stage {
+  height: auto;
+  aspect-ratio: 1000 / 426.4;
+  border-radius: 18px;
+  background: radial-gradient(120% 90% at 50% 0%, #f8fafc 0%, #eef2f7 70%, #e7edf4 100%);
+}
+#view-world[data-map="small"] .m-sphere { stroke: rgba(36, 74, 120, .16); stroke-width: 1; vector-effect: non-scaling-stroke; }
+/* 地域に寄せたときは地図の外側も海の色にして、図法の縁 (大西洋の切れ目) を見せない */
+#view-world[data-map="small"] .map-svg { transition: background-color .5s; }
+#view-world[data-map="small"] .map-svg.has-sel { background-color: #dfe9f4; }
+#view-world[data-map="small"] .has-sel .m-sphere { stroke: none; }
+#view-world[data-map="small"] .map-zoom,
+#view-world[data-map="small"] .map-hint { display: none; }
+#view-world[data-map="small"] .map-foot {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px 5px;
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+#view-world[data-map="small"] .map-legend {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 400;
+}
+#view-world[data-map="small"] .map-tip { display: inline; }
+#view-world[data-map="small"] .chip { gap: 4px; padding: 3px 7px 3px 5px; font-size: 10.5px; }
+#view-world[data-map="small"] .chip b { display: none; }
+#view-world[data-map="small"] .chip-dot { width: 7px; height: 7px; }
+
 /* 使い方の案内 (一度地図を動かしたら出さない) */
 .map-hint {
   position: absolute;
@@ -1308,6 +1386,9 @@ html[data-view="world"] body { background: var(--surface); }
     padding: 0 16px 24px;
   }
   #w-main .w-section { margin-top: 18px; }
+  /* 小さい地図: 左上に地図、右側は上から下まで話題TOP10・記事 (以前の版) */
+  #view-world[data-map="small"] { grid-template-areas: "head side" "map side" "main side"; }
+  #view-world[data-map="small"] .map-card { margin: 0 16px; }
   #w-side {
     grid-area: side;
     position: relative;

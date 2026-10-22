@@ -70,6 +70,7 @@
   };
   let readIds = store.get("worldRead", []);
   const readSet = new Set(readIds);
+  let mapSize = store.get("mapSize", "large") === "small" ? "small" : "large"; // 地図の大きさ (大・小)
 
   // ---- 小さな道具 ----
 
@@ -282,7 +283,7 @@
     };
 
     stage.addEventListener("pointerdown", (e) => {
-      if ((e.pointerType === "mouse" && e.button !== 0) || e.target.closest("button")) return;
+      if (!m.pannable || (e.pointerType === "mouse" && e.button !== 0) || e.target.closest("button")) return;
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pts.size === 1) moved = false;
       cancelAnimationFrame(m.anim);
@@ -345,6 +346,7 @@
     stage.addEventListener(
       "wheel",
       (e) => {
+        if (!m.pannable) return; // 小さい地図ではページのスクロールに使う
         e.preventDefault();
         const rect = stage.getBoundingClientRect();
         const k = Math.exp(e.deltaY * 0.0022);
@@ -847,13 +849,15 @@
   function swipeBlocked(target) {
     if (document.body.classList.contains("w-overlay") || !$("reader").hidden || !$("settings-modal").hidden) return true;
     for (let el = target; el && el !== document.body; el = el.parentElement) {
-      if (el.matches(".map-stage, input, textarea")) return true;
+      if (el.matches(".map-stage.pannable, input, textarea")) return true;
       if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return true;
     }
     return false;
   }
   // 指を動かした向きにあるタブ (左へ払うと右隣のタブ)
   const swipeTarget = (dx) => TAB_ORDER[TAB_ORDER.indexOf(route.view) + (dx < 0 ? 1 : -1)] ?? null;
+  // ここまで動かせば切り替わる距離 (画面幅の約3割。開いた折りたたみなど広い画面でも親指で届く長さまで)
+  const swipeDistance = () => Math.min(document.documentElement.clientWidth * 0.28, 160);
 
   // 下のタブの色の付いた丸を、今のタブから切り替え先へ p (0〜1) だけ移す
   function setPills(from, to, p) {
@@ -900,7 +904,7 @@
       while (swipe.trail.length > 2 && now - swipe.trail[0][0] > 100) swipe.trail.shift();
       // 切り替え先がある向きは指に合わせて動かし、ない向き (端のタブ) はゴムのように少しだけ動かす
       const to = swipeTarget(dx);
-      const p = to ? Math.min(1, Math.abs(dx) / (document.documentElement.clientWidth * 0.5)) : 0;
+      const p = to ? Math.min(1, Math.abs(dx) / (swipeDistance() * 1.8)) : 0;
       const el = viewEl(route.view);
       el.style.transform = `translateX(${to ? dx * 0.6 : Math.sign(dx) * Math.min(36, Math.abs(dx) * 0.18)}px)`;
       el.style.opacity = String(1 - p * 0.35);
@@ -920,7 +924,7 @@
       const [t1, x1] = trail[trail.length - 1];
       const v = t1 > t0 ? (x1 - x0) / (t1 - t0) : 0; // 指を離す直前の速さ (px/ms)
       const to = swipeTarget(dx);
-      const far = Math.abs(dx) > document.documentElement.clientWidth * 0.28;
+      const far = Math.abs(dx) > swipeDistance();
       const flick = Math.abs(v) > 0.45 && Math.abs(dx) > 40 && Math.sign(v) === Math.sign(dx);
       finishSwipe(to && (far || flick) ? to : null);
     },
@@ -991,7 +995,8 @@
           if (id) navigate(`#/world/${id}`);
         });
         homeMap.onView = updateMapControls;
-        homeMap.overlays = $("map-stage").querySelectorAll(".map-legend, .map-zoom, .map-reset");
+        homeMap.overlays = $("map-stage").closest(".map-card").querySelectorAll(".map-legend, .map-zoom, .map-reset");
+        homeMap.pannable = mapSize === "large";
         enableGestures(homeMap, $("map-stage"), hideMapHint);
         // 枠の大きさが変わったら (画面の回転・折りたたみの開閉・タブの切り替え)、見ていた範囲を枠に合わせ直す
         new ResizeObserver(() => {
@@ -1026,6 +1031,26 @@
     if (homeMap?.focus) navigate("#/world");
     else if (homeMap) flyTo(homeMap, homeView(homeMap));
   });
+  // 地図の大きさの切り替え ("large": 画面上部の幅いっぱいで指で動かせる / "small": 世界全体を左上のカードに)
+  function applyMapSize() {
+    $("view-world").dataset.map = mapSize;
+    $("map-stage").classList.toggle("pannable", mapSize === "large");
+    for (const b of $("map-size").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.size === mapSize));
+    if (homeMap) homeMap.pannable = mapSize === "large";
+  }
+  for (const b of $("map-size").querySelectorAll("button")) {
+    b.addEventListener("click", () => {
+      if (b.dataset.size === mapSize) return;
+      mapSize = b.dataset.size;
+      store.set("mapSize", mapSize);
+      applyMapSize();
+      if (!homeMap || !world) return;
+      renderRoute(); // 地域名の大きさが変わるので作り直す
+      zoomMap(homeMap, homeMap.focus ?? null, false); // 新しい枠の形に合わせて、世界全体 (選んだ地域) を見せ直す
+    });
+  }
+  applyMapSize();
+
   $("map-zoom-in").addEventListener("click", () => homeMap && flyTo(homeMap, zoomAround(homeMap, 1 / ZOOM_STEP)));
   $("map-zoom-out").addEventListener("click", () => homeMap && flyTo(homeMap, zoomAround(homeMap, ZOOM_STEP)));
   $("map-zoom-in").innerHTML = ICONS.plus;

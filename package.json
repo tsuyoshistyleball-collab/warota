@@ -1,6 +1,6 @@
 {
   "name": "warota-antenna",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "description": "世界の話題ニュースと5ちゃんねるまとめを集める自分用ニュースアプリ (PWA)",
   "type": "module",
