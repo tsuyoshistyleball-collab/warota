@@ -284,3 +284,53 @@ test("レスの本文の中のアマゾンのリンクは、リンクだけを�
   assert.ok(!text.includes("おすすめの商品"));
   assert.equal((text.match(/元スレ/g) ?? []).length, 1, "リンクの前の「元スレ：」だけ残す");
 });
+
+test("ハムスター速報・パンドラの憂鬱: アマゾンの短縮URL (link.amazon) の紹介と商品名の行を除く", { skip }, async () => {
+  const html = await run(
+    `<div class="article-body-inner">${posts(6)}
+      <span style="color:#3300FF"><span style="font-size:150%"><b>Amazon期間限定無料マンガ一覧ページ<br><a href="https://link.amazon/B0fpt5w0T">https://link.amazon/B0fpt5w0T</a></b></span></span><br><br>
+      <span style="color:#3300FF"><span style="font-size:150%"><b>To LOVEる―とらぶる― 短編集</b></span></span><br>
+      <span style="font-size:150%"><b><a href="https://link.amazon/B00VbCyrP">https://link.amazon/B00VbCyrP</a><br></b></span><br><br>
+      <b><a href="https://link.amazon/B00VbCyrP"><img src="https://m.media-amazon.com/images/I/71tir6TmIZL._SL500_.jpg"></a></b>
+      <strong>・<a href="https://link.amazon/B07L9gE0P">なぜフランス人の僕が、日本を“天国“と呼ぶのか</a><br>・<a href="https://link.amazon/B08EGe4e0">フランス夫の愛がエグい</a></strong></div>`,
+  );
+  const text = textOf(html);
+  for (const junk of ["Amazon", "To LOVEる", "フランス", "link.amazon"]) assert.ok(!html.includes(junk), junk);
+  assert.equal((text.match(/ID:abc/g) ?? []).length, 6);
+});
+
+test("ガハろぐ・ぶる速: 「関連記事」の後の1本のリンクと、レスの本文の中の「おすすめ：」の宣伝を除く (画像は残す)", { skip }, async () => {
+  const html = await run(
+    `<div class="article-body-inner">${posts(2)}
+      <div class="t_h">3: 名無し 2026/10/21(水) 21:44:06.97 ID:4YkKX</div><div class="t_b"><div><a href="https://livedoor.blogimg.jp/a/imgs/1/2/x.jpg"><img src="https://livedoor.blogimg.jp/a/imgs/1/2/x-s.jpg"></a><br><br>
+        <span style="color:blue"><u>おすすめ：<a href="https://al.fanza.co.jp/?lurl=https%3A%2F%2Fvideo.dmm.co.jp%2Fav">【特典映像収録版】新人のデビュー作品のタイトル</a></u></span></div></div>
+      <b>関連記事</b><br><span style="font-size:small"><a href="https://example.com/archives/52603609.html"><div class="arrow4">ウマ娘のアメリカ公演、中止を発表</div></a></span><br><br>
+      ${posts(3, 4)}</div>`,
+  );
+  const text = textOf(html);
+  assert.ok(!text.includes("おすすめ") && !text.includes("特典映像") && !text.includes("関連記事") && !text.includes("ウマ娘"), text);
+  assert.ok(html.includes("x.jpg"), "レスの画像は残す");
+  assert.equal((text.match(/ID:abc/g) ?? []).length, 5);
+});
+
+test("流速VIP・ライフハック: 「:」のない見出しや、日付が本文の後ろにある見出しも、レスの見出しとして扱う", { skip }, async () => {
+  const ryusoku = await run(
+    `<div class="entry-main">${Array.from({ length: 6 }, (_, i) =>
+      `<div class="res me2 nest0"><div class="header"><span class="num">${i + 1}</span><span class="name">名無しさん</span><span class="date">${i ? "10/22 14:4" + i : "<span>20</span>26/10/22(木) 14:41"}</span><span class="id">ID:EUYLLa2N${i}</span></div><div class="contents">レスの本文その${i}です。</div><br><br></div>`).join("")}</div>`,
+  );
+  assert.equal((ryusoku.match(/class="ph header"/g) ?? []).length, 6, ryusoku.slice(0, 400));
+  assert.ok(ryusoku.includes('<span class="num">1</span> <span class="name">'), "番号と名前の間を空ける");
+  const lifehack = await run(
+    `<div class="blogbody"><div class="mainmore">${Array.from({ length: 5 }, (_, i) =>
+      `<span class="t_name">${i + 2} ：<font color="green">レンザブロー(ジパング)[ﾆﾀﾞ]</font></span> <p class="r2">本文の文章です${i}</p><br><span style="font-size:0.7em;float:right">2026/10/22(木) 10:16:35.01 ID:xgkS54s7${i}</span>`).join("")}</div></div>`,
+  );
+  assert.equal((lifehack.match(/class="ph t_name"/g) ?? []).length, 5, lifehack.slice(0, 300));
+});
+
+test("エレファント速報: ページの中の切り替え (javascript:) だけの短い項目の並びも、最後のレスの後ろなら除く", { skip }, async () => {
+  const html = await run(
+    `<div class="article">${posts(6)}<div>元スレ <a href="https://nova.5ch.io/test/read.cgi/x/1/">https://nova.5ch.io/test/read.cgi/x/1/</a></div>
+      <ul>${["すべて", "不思議", "デレマス", "ガルパン", "艦これ"].map((t) => `<li><a href="javascript:void(0)">「${t}」</a></li>`).join("")}</ul></div>`,
+  );
+  assert.ok(!textOf(html).includes("「すべて」") && textOf(html).includes("元スレ"));
+});
