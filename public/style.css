@@ -416,6 +416,7 @@ body.noscroll { overflow: hidden; }
 #view-world,
 #view-matome,
 #view-settings,
+#w-home,
 #w-main,
 .pane-scroll { touch-action: pan-y pinch-zoom; }
 
@@ -494,6 +495,7 @@ html[data-view="world"] body { background: var(--surface); }
   isolation: isolate;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: pan-y; /* 指1本の縦の動きはスクロール、2本指は (ページ全体ではなく) 地図の拡大縮小に使う */
 }
 /* 指で動かせる地図では、指の操作をページのスクロールやタブのスワイプではなく地図の移動に使う */
 .map-stage.pannable { touch-action: none; cursor: grab; }
@@ -658,9 +660,11 @@ html[data-view="world"] body { background: var(--surface); }
   left: 10px;
   bottom: 10px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   pointer-events: none;
 }
-.map-tip { display: none; }
 .map-legend {
   display: inline-flex;
   align-items: center;
@@ -674,6 +678,38 @@ html[data-view="world"] body { background: var(--surface); }
   font-weight: 600;
   pointer-events: none;
 }
+/* 地図の大きさの切り替え (凡例の横) */
+.map-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 3px 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 1px 4px rgba(16, 24, 40, .12);
+  color: var(--fg-dim);
+  font-size: 10.5px;
+  font-weight: 700;
+  pointer-events: auto;
+}
+.map-size span { margin-right: 4px; }
+.map-size button {
+  position: relative;
+  min-width: 30px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.map-size button::after { content: ""; position: absolute; inset: -8px -1px; } /* 指で押しやすく */
+.map-size button[aria-pressed="true"] { background: var(--fg); color: #fff; }
 .map-zoom {
   position: absolute;
   right: 10px;
@@ -709,7 +745,7 @@ html[data-view="world"] body { background: var(--surface); }
   stroke-width: 2.2;
   stroke-linecap: round;
 }
-/* 地図 (小: 世界全体が見えるカード。タップで地域を選ぶだけで、指では動かさない) */
+/* 地図 (小: 世界全体が見えるカード。指1本ではページをスクロールし、2本指で拡大すると指で動かせる) */
 #view-world[data-map="small"] .map-card {
   margin: 0 12px;
   padding: 6px;
@@ -732,11 +768,9 @@ html[data-view="world"] body { background: var(--surface); }
 #view-world[data-map="small"] .map-hint { display: none; }
 #view-world[data-map="small"] .map-foot {
   position: static;
-  display: flex;
-  align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 9px 10px 5px;
+  padding: 6px 2px 0 10px;
   color: var(--fg-dim);
   font-size: 11px;
 }
@@ -747,7 +781,7 @@ html[data-view="world"] body { background: var(--surface); }
   font-size: 11px;
   font-weight: 400;
 }
-#view-world[data-map="small"] .map-tip { display: inline; }
+#view-world[data-map="small"] .map-size { background: var(--surface); box-shadow: none; }
 #view-world[data-map="small"] .chip { gap: 4px; padding: 3px 7px 3px 5px; font-size: 10.5px; }
 #view-world[data-map="small"] .chip b { display: none; }
 #view-world[data-map="small"] .chip-dot { width: 7px; height: 7px; }
@@ -1486,8 +1520,19 @@ html[data-view="settings"] body { background: var(--surface); }
     padding: 0 16px 24px;
   }
   #w-main .w-section { margin-top: 18px; }
-  /* 小さい地図: 左上に地図、右側は上から下まで話題TOP10・記事 (以前の版) */
-  #view-world[data-map="small"] { grid-template-areas: "head side" "map side" "main side"; }
+  /* 小さい地図: 左は見出し・地図・地域カードをまとめてスクロールし、右側は上から下まで話題TOP10・記事 (以前の版) */
+  #view-world[data-map="small"] {
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "home side";
+  }
+  #view-world[data-map="small"] #w-home {
+    display: block;
+    grid-area: home;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  #view-world[data-map="small"] #w-main { overflow: visible; }
   #view-world[data-map="small"] .map-card { margin: 0 16px; }
   #w-side {
     grid-area: side;

@@ -265,7 +265,8 @@
   }
 
   // 指 (マウス) で地図を動かし、2本指 (ホイール) で拡大縮小する。
-  // 動かし終わった直後のクリックは、指を離した位置の地域を選んだことにしない
+  // m.pannable が false のとき (世界全体が見えている小さい地図) は、指1本の操作はページのスクロールやタブの切り替えに任せ、
+  // 2本指の拡大縮小だけを受け付ける。動かし終わった直後のクリックは、指を離した位置の地域を選んだことにしない
   function enableGestures(m, stage, onMove) {
     const pts = new Map(); // 画面に触れている指 (pointerId → 位置)
     let base = null; // 触れたときの {vb, rect, cx, cy, d}
@@ -284,11 +285,14 @@
     };
 
     stage.addEventListener("pointerdown", (e) => {
-      if (!m.pannable || (e.pointerType === "mouse" && e.button !== 0) || e.target.closest("button")) return;
+      if ((e.pointerType === "mouse" && (e.button !== 0 || !m.pannable)) || e.target.closest("button")) return;
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pts.size === 1) moved = false;
-      cancelAnimationFrame(m.anim);
-      m.svg.classList.remove("animating");
+      // 触れたら地図の動きを止める (指1本では動かせない地図は、2本目の指が触れたとき)
+      if (m.pannable || pts.size > 1) {
+        cancelAnimationFrame(m.anim);
+        m.svg.classList.remove("animating");
+      }
       rebase();
     });
     stage.addEventListener("pointermove", (e) => {
@@ -296,6 +300,7 @@
       if (!p) return;
       p.x = e.clientX;
       p.y = e.clientY;
+      if (pts.size < 2 && !m.pannable) return;
       const now = center();
       if (!moved) {
         // 少しぶれただけ (タップ) なら、まだ地図は動かさない
@@ -373,6 +378,15 @@
     const [minW, maxW] = widthLimits(m);
     $("map-zoom-in").disabled = m.vb[2] <= minW + 0.5;
     $("map-zoom-out").disabled = m.vb[2] >= maxW - 0.5;
+    updatePannable();
+  }
+
+  // 指1本で地図を動かせるか: 大きい地図はいつも、小さい地図は拡大しているときだけ
+  // (世界全体が見えているときは動かす先がないので、指はページのスクロールやタブの切り替えに使う)
+  function updatePannable() {
+    const on = mapSize === "large" || (!!homeMap && homeMap.vb[2] < widthLimits(homeMap)[1] - 0.5);
+    $("map-stage").classList.toggle("pannable", on);
+    if (homeMap) homeMap.pannable = on;
   }
 
   // 使い方の案内は、一度地図を動かしたら以後は出さない
@@ -834,7 +848,8 @@
       if (tab === route.view) {
         const behavior = reducedMotion.matches ? "auto" : "smooth";
         window.scrollTo({ top: 0, behavior });
-        if (tab === "world") $("w-main").scrollTo({ top: 0, behavior }); // 広い画面では左側だけがスクロールする
+        // 広い画面では左側だけがスクロールする (地図「大」は地域カード、「小」は見出しから地域カードまで)
+        if (tab === "world") for (const id of ["w-main", "w-home"]) $(id).scrollTo({ top: 0, behavior });
         return;
       }
       switchTab(tab);
@@ -995,8 +1010,8 @@
           if (id) navigate(`#/world/${id}`);
         });
         homeMap.onView = updateMapControls;
-        homeMap.overlays = $("map-stage").closest(".map-card").querySelectorAll(".map-legend, .map-zoom, .map-reset");
-        homeMap.pannable = mapSize === "large";
+        homeMap.overlays = $("map-stage").closest(".map-card").querySelectorAll(".map-legend, .map-size, .map-zoom, .map-reset");
+        updatePannable();
         enableGestures(homeMap, $("map-stage"), hideMapHint);
         // 枠の大きさが変わったら (画面の回転・折りたたみの開閉・タブの切り替え)、見ていた範囲を枠に合わせ直す
         new ResizeObserver(() => {
@@ -1040,22 +1055,26 @@
     if (homeMap?.focus) navigate("#/world");
     else if (homeMap) flyTo(homeMap, homeView(homeMap));
   });
-  // 地図の大きさ ("large": 画面上部の幅いっぱいで指で動かせる / "small": 世界全体が見えるカード)。設定の画面で選ぶ
+  // 地図の大きさ ("large": 画面上部の幅いっぱい / "small": 世界全体が見えるカード)。地図の下のボタンと設定の画面で選ぶ
   function applyMapSize() {
     $("view-world").dataset.map = mapSize;
-    $("map-stage").classList.toggle("pannable", mapSize === "large");
-    if (homeMap) homeMap.pannable = mapSize === "large";
+    for (const b of $("map-size").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.size === mapSize));
+    for (const input of document.querySelectorAll('input[name="map-size"]')) input.checked = input.value === mapSize;
+    updatePannable();
   }
-  for (const input of document.querySelectorAll('input[name="map-size"]')) {
-    input.checked = input.value === mapSize;
-    input.addEventListener("change", () => {
-      mapSize = input.value;
-      store.set("mapSize", mapSize);
-      applyMapSize();
-      // 地図の枠の形が変わるので、ワールドの画面に戻ったときに見せ直す (地域名はタブを戻るときに作り直される)
-      if (homeMap) homeMap.refit = true;
-    });
+  function setMapSize(size) {
+    if (size === mapSize) return;
+    mapSize = size;
+    store.set("mapSize", mapSize);
+    applyMapSize();
+    if (!homeMap) return;
+    renderRoute(); // 地域名の大きさが変わるので作り直す
+    // 枠の形が変わるので、世界全体 (選んでいる地域) を見せ直す。ほかのタブで選んだときは、ワールドに戻ったときに
+    if (route.view === "world") zoomMap(homeMap, homeMap.focus ?? null, false);
+    else homeMap.refit = true;
   }
+  for (const b of $("map-size").querySelectorAll("button")) b.addEventListener("click", () => setMapSize(b.dataset.size));
+  for (const input of document.querySelectorAll('input[name="map-size"]')) input.addEventListener("change", () => setMapSize(input.value));
   applyMapSize();
 
   // 設定の画面の「地図の大きさ」の見本に、地図の形と今の話題の色を入れる

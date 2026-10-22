@@ -40,7 +40,11 @@
       </div>
       <div class="map-foot">
         <span class="map-legend" aria-hidden="true">落ち着き<i class="legend-bar"></i>話題沸騰</span>
-        <span class="map-tip">地域をタップ</span>
+        <div id="map-size" class="map-size" role="group" aria-label="地図の大きさ">
+          <span>地図</span>
+          <button type="button" data-size="small" aria-pressed="false">小</button>
+          <button type="button" data-size="large" aria-pressed="true">大</button>
+        </div>
       </div>
     </div>
 
@@ -118,7 +122,7 @@
       <h2 id="s-world-h" class="s-label">ワールド</h2>
       <div class="s-card s-pad">
         <h3 id="map-size-h" class="s-title">地図の大きさ</h3>
-        <p class="s-note">ワールドの画面の世界地図</p>
+        <p class="s-note">ワールドの画面の、地図の下のボタンでも切り替えられます</p>
         <!-- 選んだときの画面の見本。狭い画面用 (art-compact) と広い画面用 (art-wide) があり、地図の形と色は world.js が入れる -->
         <div class="size-pick" role="radiogroup" aria-labelledby="map-size-h">
           <label class="size-opt">
