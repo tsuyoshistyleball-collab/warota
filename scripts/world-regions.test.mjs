@@ -58,3 +58,14 @@ test("フィードの種類による振り分け", () => {
   assert.equal(regionsOf("国連が食料危機を警告", "world"), "");
   assert.equal(regionsOf("日本の首相が演説", "world"), "japan");
 });
+
+test("国籍だけが出てくる国内の記事は日本に入れる", () => {
+  assert.equal(regionsOf("外国籍の男女３人を覚せい剤所持などの疑いで逮捕 愛知・豊川市の病院でイラン人男性が死亡し", "mixed"), "japan");
+  assert.equal(regionsOf("ベトナム人技能実習生を不当に解雇か 福岡の会社を捜索", "mixed"), "japan");
+  assert.equal(regionsOf("中国人観光客 京都の紅葉スポットに行列", "mixed"), "japan");
+  // 国そのものの話題は今まで通り外国に入れる
+  assert.equal(regionsOf("中国共産党批判の台湾コメディアン襲撃、5人起訴 中国人が犯行依頼か"), "asia");
+  assert.equal(regionsOf("ロシアで拘束の北海道新聞記者 早期解放を求める", "mixed"), "europe");
+  assert.equal(regionsOf("中国人権派弁護士を拘束"), "asia");
+  assert.equal(regionsOf("イスラエル人質の家族が抗議"), "mideast");
+});

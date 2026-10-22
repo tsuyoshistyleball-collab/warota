@@ -134,6 +134,10 @@ const KEYWORDS = [
 
   // ---- 日本 (世界ニュースのフィードで、外国の地名がないときだけ使う) ----
   ...["日本", "東京", "大阪", "沖縄", "北海道", "首相官邸", "自民党", "国会"].map((w) => [w, "japan", 1]),
+  ...["青森", "岩手", "宮城", "秋田", "山形", "福島", "茨城", "栃木", "群馬", "埼玉", "千葉", "神奈川", "新潟",
+    "富山", "石川", "福井", "山梨", "長野", "岐阜", "静岡", "愛知", "三重", "滋賀", "京都", "兵庫", "奈良",
+    "和歌山", "鳥取", "島根", "岡山", "広島", "山口", "徳島", "香川", "愛媛", "高知", "福岡", "佐賀", "長崎",
+    "熊本", "大分", "宮崎", "鹿児島"].map((w) => [w, "japan", 1]),
 ];
 
 // 長いパターンを先に並べた1本の正規表現にする。左から順に一番長い語を拾い、
@@ -147,6 +151,13 @@ const ENTRIES = KEYWORDS.map(([source, region, weight]) => ({
 })).sort((a, b) => b.len - a.len);
 const MATCHER = new RegExp(ENTRIES.map((e, i) => `(?<k${i}>${e.source})`).join("|"), "gu");
 
+// 「イラン人男性」「ベトナム国籍の男」のような国籍は、その国の話題とは限らない (国内の事件によく出る) ので軽く数える。
+// 「中国人民解放軍」「イスラエル人質」「中国人権派」は国の話題なので除く
+const NATIONALITY = /^(?:人(?![民質権口工道事])|国籍)/;
+const NATIONALITY_WEIGHT = 0.3;
+// 外国の地域のスコアがこれ未満なら、国籍が1回出てくるだけの記事とみなす
+const WEAK_FOREIGN = 0.6;
+
 // 文字列に出てくる地域ごとのスコア { region: {score, first} } を返す。
 // 文頭に近い地名ほど主題である可能性が高いので重みを上げる
 export function regionScores(text) {
@@ -157,9 +168,11 @@ export function regionScores(text) {
     const idx = Number(Object.keys(m.groups).find((k) => m.groups[k] !== undefined).slice(1));
     const { region, weight } = ENTRIES[idx];
     const pos = m.index < 6 ? 1.5 : m.index < 12 ? 1.2 : 1;
+    const end = m.index + m[0].length;
+    const person = NATIONALITY.test(s.slice(end, end + 2)) ? NATIONALITY_WEIGHT : 1;
     for (const r of [region].flat()) {
       const cur = scores.get(r) ?? { score: 0, first: m.index };
-      cur.score += weight * pos;
+      cur.score += weight * pos * person;
       cur.first = Math.min(cur.first, m.index);
       scores.set(r, cur);
     }
@@ -188,6 +201,8 @@ export function classify(item, kind) {
     return [];
   }
   const [top, topScore] = ranked[0];
+  // 外国が国籍として出てくるだけなら国内の記事 (「豊川市の病院でイラン人男性が死亡」)
+  if (topScore < WEAK_FOREIGN && (kind === "mixed" || japanScore > 0)) return [{ region: "japan", relevance: 1 }];
   const out = [{ region: top, relevance: 1 }];
   // 見出しに国名が出てくる2番目の地域も対象にする (例: 米中首脳会談 → 北米とアジア)
   const second = ranked[1];
