@@ -176,7 +176,7 @@ export async function auditArticle(site, item, showHtml = false) {
 
 // 元ページで、指定した文字を含むいちばん内側の要素 (または CSS セレクタに一致する要素) の周りの HTML と、
 // 抽出結果の同じ場所を出す。本文以外が残ったときに、元のページでどう書かれているかを調べる
-// spec: "<サイト番号>[.<記事番号>] <文字 | sel:セレクタ>" か "<記事URL> <文字 | sel:セレクタ>"。";;" で区切って複数
+// spec: "<サイト番号>[.<記事番号>] <文字 | sel:セレクタ | raw:文字>" か "<記事URL> <…>"。";;" で区切って複数
 export async function snip(spec = "") {
   const feeds = JSON.parse(await readFile(new URL("../feeds.json", import.meta.url), "utf8"));
   for (const one of spec.split(";;")) {
@@ -199,6 +199,12 @@ export async function snip(spec = "") {
       html = await fetchTextWithFallback(link, 20_000);
     } catch (err) {
       console.log(`    FETCH NG: ${err.message}`);
+      continue;
+    }
+    // "raw:文字" なら、元のHTMLの文字列でその文字の前後をそのまま出す (DOM にする前の書き方を見る)
+    if (needle.startsWith("raw:")) {
+      const at = html.indexOf(needle.slice(4));
+      console.log(at < 0 ? "    not found" : html.slice(Math.max(0, at - 2500), at + 1500).replace(/\s+/g, " "));
       continue;
     }
     const { document } = parseHTML(html);
