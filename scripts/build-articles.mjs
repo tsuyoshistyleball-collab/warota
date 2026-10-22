@@ -1024,6 +1024,7 @@ async function main() {
 
   // 1. 前回デプロイ済みの抽出結果を Pages から復元
   let restored = 0;
+  const stale = [];
   if (PAGES_BASE) {
     await pool(data.items, 16, async (item) => {
       const h = hashUrl(item[2]);
@@ -1033,17 +1034,20 @@ async function main() {
         });
         if (!res.ok) return;
         const text = await res.text();
-        // 旧フォーマット(文字化けの可能性あり)は捨てて再抽出させる
-        if (JSON.parse(text).v !== ART_VERSION) return;
+        const v = JSON.parse(text).v;
+        // ずっと古い形式 (文字化けの可能性あり) は捨てて取り直す
+        if (!(v >= ART_VERSION - 2)) return;
         await writeFile(path.join(ART_DIR, `${h}.json`), text);
         item[4] = h;
-        restored++;
+        // 少し前の形式は、取り直すまでのつなぎとして使う (形式を上げても、アプリ内で読めない記事が出ないように)
+        if (v === ART_VERSION) restored++;
+        else stale.push(item);
       } catch {}
     });
   }
 
-  // 2. 未抽出の記事を新規に抽出
-  const pending = data.items.filter((item) => !item[4]).slice(0, MAX_NEW);
+  // 2. 未抽出の記事を新規に抽出し、残りの枠で古い形式の記事を取り直す
+  const pending = [...data.items.filter((item) => !item[4]), ...stale].slice(0, MAX_NEW);
   let extracted = 0;
   let failed = 0;
   await pool(pending, CONCURRENCY, async (item) => {
@@ -1068,7 +1072,7 @@ async function main() {
   await writeFile(dataPath, JSON.stringify(data));
   const skipped = data.items.filter((item) => !item[4]).length;
   console.log(
-    `articles: ${restored} restored, ${extracted} extracted, ${failed} failed, ${skipped} without reader`,
+    `articles: ${restored} restored, ${stale.length} old format, ${extracted} extracted, ${failed} failed, ${skipped} without reader`,
   );
 }
 
