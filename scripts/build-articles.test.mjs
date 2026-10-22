@@ -271,3 +271,16 @@ test("おーるじゃんる: 本文の中の「今読まれている注目ニュ
   for (const junk of ["注目ニュース", "よそのまとめブログ", "トップページ", "応援登録", "Google検索"]) assert.ok(!text.includes(junk), junk);
   assert.ok(text.includes("最初のレスの本文") && text.includes("元のスレのタイトル") && (text.match(/ID:abc/g) ?? []).length === 6);
 });
+
+test("レスの本文の中のアマゾンのリンクは、リンクだけを消して本文の文字は残す", { skip }, async () => {
+  const html = await run(
+    `<div class="article-body-inner">${posts(5)}<div class="t_h">6: 名無しさん 2026/10/22(木) 16:00:00.00 ID:zz</div>
+      <div class="t_b"><span>これ買ったけど良かったわ <a href="https://www.amazon.co.jp/dp/B000">https://www.amazon.co.jp/dp/B000</a></span></div>
+      <div><a href="https://www.amazon.co.jp/dp/B001?tag=x-22"><img src="https://m.media-amazon.com/b.jpg"></a><span>おすすめの商品</span></div>
+      <p>元スレ：<a href="https://nova.5ch.io/test/read.cgi/x/1/">元のスレ</a></p><div><span>元スレ： </span></div></div>`,
+  );
+  const text = textOf(html);
+  assert.ok(text.includes("これ買ったけど良かったわ") && !html.includes("amazon"), html.slice(-500));
+  assert.ok(!text.includes("おすすめの商品"));
+  assert.equal((text.match(/元スレ/g) ?? []).length, 1, "リンクの前の「元スレ：」だけ残す");
+});

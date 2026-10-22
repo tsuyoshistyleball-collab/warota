@@ -1,7 +1,7 @@
 // まとめ記事の本文抽出を全サイトまとめて点検する (debugワークフローから実行するメンテ用)。
 // 各サイトの最新記事を実際に取得して extract() にかけ、どこを本文として使ったか・先頭と末尾に
 // 本文以外 (タイトル・日付・カテゴリ・共有ボタン・コメント数など) が混ざっていないかをログに出す。
-// usage: node scripts/debug-extract.mjs "audit <最初のサイト番号>-<最後のサイト番号> [1サイトあたりの記事数]"
+// usage: node scripts/debug-extract.mjs "audit <最初のサイト番号>-<最後のサイト番号> [1サイトあたりの記事数] [html | brief]"
 
 import { readFile } from "node:fs/promises";
 import { parseHTML } from "linkedom";
@@ -102,6 +102,40 @@ function candidates(html) {
   return rows.sort((a, b) => b[0] - a[0]).slice(0, 8).map(([, r]) => r);
 }
 
+// 本文以外が残っていそうな言葉。簡易表示では、抽出した文章の中でこれらが出てくる所の前後だけを出す
+const SUSPECT_RE =
+  /おすすめ|オススメ|関連記事|人気記事|注目|新着|最新記事|ピックアップ|ランキング|アンテナ|コメント|シェア|ツイート|Tweet|はてブ|はてな|LINEで|Pocket|フォロー|カテゴリ|タグ|スポンサー|広告|Amazon|アマゾン|楽天|続きを読む|記事一覧|トップページ|次の記事|前の記事|応援|登録|この記事/g;
+
+function suspects(text) {
+  const out = [];
+  for (const m of text.matchAll(SUSPECT_RE)) {
+    if (out.length >= 10) break;
+    out.push(`${m[0]}: …${text.slice(Math.max(0, m.index - 25), m.index + 35).replace(/\s+/g, " ")}…`);
+  }
+  return out;
+}
+
+// 簡易表示: 本文の量・最初と最後のまとまり・怪しい言葉の前後
+async function briefArticle(site, item) {
+  const lines = [`--- [${site.name}] ${clip(item.title, 50)} ${item.link}`];
+  let html;
+  try {
+    html = await fetchTextWithFallback(item.link, 20_000);
+  } catch (err) {
+    return [...lines, `    FETCH NG: ${err.message}`];
+  }
+  const res = await extract(html, item.link, item.title).catch((err) => ({ error: err.message }));
+  if (!res || res.error) return [...lines, `    EXTRACT NG: ${res?.error ?? "no content"}`];
+  const text = res.html.replace(/<[^>]*>/g, "").replace(/&[a-z]+;/g, " ").replace(/\s+/g, " ").trim();
+  const count = (re) => (res.html.match(re) ?? []).length;
+  lines.push(`    via=${res.via} text=${text.length} img=${count(/<img/g)} video=${count(/<video|embed-video/g)} ph=${count(/class="ph[ "]/g)} links=${count(/<a /g)}`);
+  const { rows, total } = outline(res.html);
+  const show = total <= 6 ? rows : [...rows.slice(0, 3), `… (${total - 6} more)`, ...rows.slice(-3)];
+  for (const r of show) lines.push(`      ${r}`);
+  for (const s of suspects(text)) lines.push(`    ? ${s}`);
+  return lines;
+}
+
 export async function auditArticle(site, item, showHtml = false) {
   const lines = [`--- [${site.name}] ${clip(item.title, 60)}`, `    ${item.link}`];
   let html;
@@ -196,6 +230,7 @@ export async function audit(spec = "") {
   const [range = `0-${feeds.length - 1}`, per = "2", mode = ""] = spec.trim().split(/\s+/);
   const perSite = Number(per) || 2;
   const showHtml = mode === "html";
+  const brief = mode === "brief";
   const pick = range.includes(",")
     ? new Set(range.split(",").map(Number))
     : (() => {
@@ -213,7 +248,9 @@ export async function audit(spec = "") {
         const lines = [`\n######## ${i}: ${feed.name} (${feed.url})`];
         try {
           const xml = await fetchTextWithFallback(feed.url, 20_000, "application/rss+xml, application/xml, text/xml, */*");
-          for (const item of parseFeed(xml).slice(0, perSite)) lines.push(...(await auditArticle(feed, item, showHtml)));
+          for (const item of parseFeed(xml).slice(0, perSite)) {
+            lines.push(...(brief ? await briefArticle(feed, item) : await auditArticle(feed, item, showHtml)));
+          }
         } catch (err) {
           lines.push(`  FEED NG: ${err.message}`);
         }

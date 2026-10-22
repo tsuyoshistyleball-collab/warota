@@ -194,7 +194,7 @@ function videoCard(href, label, thumb, budget) {
 
 // 共有ボタン・はてなブックマークなどのリンクと、そのボタンの画像 (本文には要らない)
 const SHARE_LINK_RE =
-  /b\.hatena\.ne\.jp\/(entry|add)|(twitter|x)\.com\/(share|intent)|facebook\.com\/(share|sharer|dialog)|line\.me\/R\/msg|social-plugins\.line\.me|timeline\.line\.me\/social-plugin|getpocket\.com\/(edit|save)|feedly\.com\/i\/subscription|google\.com\/preferences\/source/i;
+  /b\.hatena\.ne\.jp\/(entry|add)|\/\/(www\.|mobile\.)?(twitter|x)\.com\/(share|intent)|facebook\.com\/(share|sharer|dialog)|line\.me\/R\/msg|social-plugins\.line\.me|timeline\.line\.me\/social-plugin|getpocket\.com\/(edit|save)|feedly\.com\/i\/subscription|google\.com\/preferences\/source/i;
 const SOCIAL_IMG_RE =
   /b\.st-hatena\.com|hatena\.ne\.jp\/(entry\/image|images)|platform\.twitter\.com|scdn\.line-apps\.com|social-plugins\.line\.me|widgets\.getpocket\.com|parts\.blog\.livedoor\.jp\/img\/cmn\/google-ps|blogmura\.com\/img|blogranking\.fc2\.com|with2\.net\/img|\/banners?\//i;
 
@@ -478,7 +478,7 @@ const BLOG_LINK_RE = /\/archives\/|blog-entry-\d+|\/acv\/\d+|[?&]url=http|antenn
 const DECOR = String.raw`[\s\p{P}\p{S}]*`;
 // それだけで1行になっている案内・宣伝の見出しや、共有ボタンの文字
 const LABEL_RE = new RegExp(
-  `^${DECOR}(スポンサー?ド?\\s*リンク|スポンサー|PR|広告|おすすめ記事|オススメ記事|おすすめ|関連記事|関連リンク|人気記事|注目記事|新着記事|最新記事|今一番注目されている記事.*|やんごとなき人気記事|ピックアップニュース|ピックアップ|他ブログ様新着記事|他サイト様新着記事|みんなが見てる|コメントする|コメントを書く|コメントを投稿する|コメントを見る.*|コメント一覧.*|.{0,12}の?全記事一覧|気になるAmazonの本|直近のコメント数ランキング|記事ランキング.*|人気ページランキング|月間ランキング|この記事が気に入ったら.*|Tweet|ツイート|シェア|はてブ|LINEで送る|Pocket|フォローする|最新情報をお届けします|(この)?記事を(はてブ|ツイート|シェア|ポスト)(する)?|(この)?(エントリー|記事)をはてなブックマークに追加|みんなのポスト|タイムセール(開催中|実施中)?|元スレ|元記事)${DECOR}$`,
+  `^${DECOR}(スポンサー?ド?\\s*リンク|スポンサー|PR|広告|おすすめ記事|オススメ記事|おすすめ|関連記事|関連リンク|人気記事|注目記事|新着記事|最新記事|今一番注目されている記事.*|やんごとなき人気記事|ピックアップニュース|ピックアップ|他ブログ様新着記事|他サイト様新着記事|みんなが見てる|コメントする|コメントを書く|コメントを投稿する|コメントを見る.*|コメント一覧.*|.{0,12}の?全記事一覧|気になるAmazonの本|直近のコメント数ランキング|記事ランキング.*|人気ページランキング|月間ランキング|この記事が気に入ったら.*|Tweet|ツイート|シェア|はてブ|LINEで送る|Pocket|フォローする|最新情報をお届けします|(この)?記事を(はてブ|ツイート|シェア|ポスト)(する)?|(この)?(エントリー|記事)をはてなブックマークに追加|みんなのポスト|タイムセール(開催中|実施中)?)${DECOR}$`,
   "iu",
 );
 // 書き出しがおすすめ記事などの案内で、リンクが多いまとまり
@@ -583,6 +583,8 @@ function isJunkBlock(el, text, ctx) {
   // ここから先は決まった書き方の見出し・案内。レスの本文 (「おすすめ」だけの返事など) は対象にしない
   if (ctx.inPostBody(el)) return false;
   if (LABEL_RE.test(text) || (text.length <= 300 && DISCLAIMER_RE.test(text))) return true;
+  // リンクの消えた「元スレ：」だけの行 (リンクが続くときは、その見出しなので残す)
+  if (/^元(スレ|記事)\s*[:：]?$/.test(text) && !el.parentElement?.querySelector("a[href]")) return true;
   const links = [...el.querySelectorAll("a[href]")];
   // おすすめ記事などの案内で始まり、リンクの多いまとまり
   if (PROMO_START_RE.test(text)) {
@@ -692,11 +694,15 @@ function tidy(root, ctx) {
   // 2) アフィリエイト・ブログランキングのリンクを、レスを含まない小さなまとまりごと除く
   for (const a of [...root.querySelectorAll("a[href]")]) {
     if (!root.contains(a) || !AFFILIATE_RE.test(a.getAttribute("href") ?? "")) continue;
+    const inBody = ctx.inPostBody(a);
     let box = a;
     while (box.parentElement && box.parentElement !== root) {
-      const text = box.parentElement.textContent;
+      const parent = box.parentElement;
+      const text = parent.textContent;
       if (text.length > 300 || countPosts(text) > 0) break;
-      box = box.parentElement;
+      // レスの本文の中のリンクは、リンクだけを包んだ飾りまでを消す (本文の文字は残す)
+      if (inBody && (isHead(prevContent(parent)) || flatText(text) !== flatText(box.textContent))) break;
+      box = parent;
     }
     box.remove();
   }
