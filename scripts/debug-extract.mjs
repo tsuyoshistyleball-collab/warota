@@ -18,6 +18,13 @@ if (url === "world-probe" || url === "world") {
   process.exit(0);
 }
 
+// "audit 0-9 2" なら feeds.json の0〜9番目のサイトの最新2記事ずつ、本文抽出の結果を点検する
+if (url.startsWith("audit")) {
+  const { audit } = await import("./audit-articles.mjs");
+  await audit(url.slice(5));
+  process.exit(0);
+}
+
 // "feed <フィードURL> <キーワード>" 形式ならフィードから記事を探す
 if (url.startsWith("feed ")) {
   const [, feedUrl, ...kw] = url.split(/\s+/);

@@ -353,6 +353,7 @@ export async function extract(html, url) {
   // 本文コンテナは複数に分かれていることがある (最初のレスと「続き」が別コンテナ等)
   // ため、マッチした要素はすべて連結する
   let roots = [];
+  let via = "";
   for (const sel of BODY_SELECTORS) {
     const els = [...document.querySelectorAll(sel)];
     const totalLen = els.reduce((n, el) => n + el.textContent.trim().length, 0);
@@ -360,6 +361,7 @@ export async function extract(html, url) {
     const hasMedia = els.some((el) => el.querySelector("img, blockquote, video"));
     if (els.length > 0 && (totalLen > 100 || hasMedia)) {
       roots = els;
+      via = sel;
       break;
     }
   }
@@ -398,7 +400,10 @@ export async function extract(html, url) {
       if (article?.content) {
         const altRoot = parseHTML(`<div>${article.content}</div>`).document.querySelector("div");
         const altOut = sanitizeRoots([altRoot]);
-        if (scoreOf(altOut) > scoreOf(out) * 1.3) out = altOut;
+        if (scoreOf(altOut) > scoreOf(out) * 1.3) {
+          out = altOut;
+          via = "readability";
+        }
       }
     } catch {}
   }
@@ -409,7 +414,7 @@ export async function extract(html, url) {
   if (garbled > 5) return null;
   // タグを除いた実質テキストが少なすぎる場合は抽出失敗扱い (画像・動画があればOK)
   if (text.length <= 100 && !out.includes("<img") && !out.includes("<video")) return null;
-  return { html: out, related };
+  return { html: out, related, via };
 }
 
 // ---- メイン ----
