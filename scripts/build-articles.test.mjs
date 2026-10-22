@@ -384,3 +384,28 @@ test("おーるじゃんる: よそのサイトへのリンクが混ざった「
   for (const junk of ["よそのまとめ", "あわせて読みたい", "注目ニュース", "こちらもおすすめ"]) assert.ok(!text.includes(junk), junk);
   assert.ok(text.includes("元のスレのタイトル") && (text.match(/ID:abc/g) ?? []).length === 12);
 });
+
+test("なんJスタジアム: 入れ物に入らずレスの後ろにじかに続く「1000：」のリンク集も、見出しごと除く", { skip }, async () => {
+  const a = (h, s) => `<span class="text"><a target="_blank" href="${h}"><span style="color:#06c">${s}</span></a></span>`;
+  const group = (items) => `<span style="font-size:125%"><b><br><br>${items.map(([h, s]) => `${a(h, s)}<br><br>`).join("")}</b></span>`;
+  const one = (h, s) => `<div><span style="font-size:125%"><b>${a(h, s)}</b></span></div><span style="font-size:125%"><b><br></b></span>`;
+  const fake =
+    `1000 ：<span style="color:green">なんじぇいスタジアム</span><span> 2014/11/30(日) 00:00:00</span>` +
+    group([["https://matomeantena.com/feed/1", "巨人、監督不在のままドラフト会議へ"], ["https://nullpoantenna.com/feed/2", "金村義明氏、ポスティング容認の阪神に危惧"]]) +
+    one("https://nullpoantenna.com/feed/3", "阪神、石井大智のポスティングも認めず") +
+    one("https://baseball-mag.net/?eid=1066678", "読売ジャイアンツ巨人軍、とんでもない左のスラッガー現る") +
+    group([["https://moudamepo.com/pick.cgi?code=1165&date=1", "【悲報】佐藤輝明、11月中にもう渡米"], ["https://katuru.com/rss/6297951.html", "【悲報】今年のドラフト公言、未だ無し"]]) +
+    one("https://yakiu-antenna.net/carp/731776.html", "【朗報】広島で「ゾンビナイト」開催！");
+  const html = await run(`<div class="article-body-inner">${posts(4)}<div class="article-body-more">${posts(3, 5)}${fake}</div></div>`);
+  const text = textOf(html);
+  for (const junk of ["なんじぇい", "監督不在", "石井大智", "スラッガー", "ドラフト公言", "ゾンビナイト"]) assert.ok(!text.includes(junk), junk);
+  assert.equal((text.match(/ID:abc/g) ?? []).length, 7);
+});
+
+test("レスの見出しの後の本文が、記事タイトルのようなリンク1〜2本や URL だけなら残す", { skip }, async () => {
+  const body = `<a href="https://www.nikkei.com/article/1">https://www.nikkei.com/article/1</a><br><a href="https://matomeantena.com/feed/9">よそのまとめの記事のタイトル</a>`;
+  const html = await run(`<div class="article-body-inner">${posts(5)}<div class="t_h">6: 名無しさん 2026/10/22(木) 15:09:00.00 ID:abc5</div><div class="t_b">${body}</div>${posts(2, 7)}</div>`);
+  const text = textOf(html);
+  assert.ok(text.includes("nikkei.com") && text.includes("6: 名無しさん"), text.slice(-300));
+  assert.equal((text.match(/ID:abc/g) ?? []).length, 8);
+});

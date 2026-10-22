@@ -618,45 +618,71 @@ function isJunkBlock(el, text, ctx) {
 
 // 入れ物にじかに並んだ宣伝リンク (「◆<a>他の記事のタイトル</a><br>」の繰り返し) を、3本以上続いたときに除く
 const BULLET_RE = /^[\s◆◇■□●○・★☆▼▽▲△►▶→※♪]*$/;
+const MEDIA = "img, video, iframe, blockquote, picture, svg, audio";
+// リンクの外にある文字
+const textOutsideLinks = (node) =>
+  node.nodeType === 3 ? node.textContent : node.nodeType === 1 && node.tagName !== "A" ? [...node.childNodes].map(textOutsideLinks).join("") : "";
 function removeLinkRuns(root, ctx) {
-  const promoAnchor = (node) => {
-    if (node.nodeType !== 1) return false;
-    let a = node;
-    // <b><a>…</a></b> や <div><span><a>…</a></span></div> のように、リンク1本だけを包んだ飾り・入れ物
-    while (a.tagName !== "A" && /^(B|STRONG|SPAN|FONT|EM|U|DIV|P|LI)$/.test(a.tagName) && a.children.length === 1 &&
-      flatText(a.textContent) === flatText(a.firstElementChild.textContent)) a = a.firstElementChild;
-    return a.tagName === "A" && isPromoLink(a, ctx) && flatText(a.textContent).length >= 8;
+  // リンクだけでできた要素 (<b><a>…</a></b>、<span><b><a>…</a><br><a>…</a></b></span> など) の、他の記事へのリンクと、
+  // それ以外の記事タイトルらしいリンク (列に混ざる、よそのアンテナなど) の本数。リンクだけでなければ null
+  const linksOf = (node) => {
+    if (node.nodeType !== 1 || !BULLET_RE.test(textOutsideLinks(node))) return null;
+    if ([...node.querySelectorAll(MEDIA)].some((m) => !m.closest("a"))) return null;
+    const links = node.tagName === "A" ? [node] : [...node.querySelectorAll("a")];
+    let promo = 0;
+    let other = 0;
+    for (const a of links) {
+      // 安価 (>>12) や URL がそのまま書かれたリンクは、レスの本文
+      const label = flatText(a.textContent);
+      if (label.length < 8 || /^(>>|＞＞|h?ttps?:|www\.)/i.test(label)) return null;
+      if (isPromoLink(a, ctx)) promo++;
+      else other++;
+    }
+    return links.length > 0 ? { promo, other } : null;
   };
   for (const box of [root, ...root.querySelectorAll("*")]) {
     if (!root.contains(box)) continue;
     let run = [];
-    let count = 0;
+    let promo = 0;
+    let other = 0;
+    // 列の前にある見出し (「🔥 今読まれている注目ニュース」など) も除く (レスの本文の「おすすめ」などは残す)
+    const removeLabel = (label) => {
+      if (!label || isHead(label) || isHead(prevContent(label))) return;
+      const t = label.textContent.replace(/\s+/g, " ").trim();
+      if (t && t.length <= 30 && countPosts(t) === 0 && (PROMO_START_RE.test(t) || LABEL_RE.test(t))) label.remove();
+    };
     const flush = () => {
-      if (count >= 3) {
+      // 他の記事へのリンクが3本以上で、列のリンクの 2/3 以上
+      if (promo >= 3 && promo >= other * 2) {
+        const label = isHead(run[0]) ? null : prevContent(run[0]);
         for (const n of run) n.remove();
-        // 列だけが入っていた入れ物は、前にある見出し (「🔥 今読まれている注目ニュース」など) ごと除く
+        removeLabel(label);
+        // 列だけが入っていた入れ物は、その前にある見出しごと除く
         if (box !== root && !box.textContent.trim() && !box.querySelector("img, video")) {
-          const label = prevContent(box);
-          const t = label && !isHead(label) ? label.textContent.replace(/\s+/g, " ").trim() : "";
-          if (t && t.length <= 30 && countPosts(t) === 0 && (PROMO_START_RE.test(t) || LABEL_RE.test(t))) label.remove();
+          removeLabel(prevContent(box));
           box.remove();
         }
       }
       run = [];
-      count = 0;
+      promo = 0;
+      other = 0;
     };
     for (const node of [...box.childNodes]) {
       if (node.nodeType === 8) continue;
       const t = node.nodeType === 3 ? node.textContent.trim() : "";
-      if ((node.nodeType === 3 && BULLET_RE.test(node.textContent)) || (node.nodeType === 1 && node.tagName === "BR")) {
+      const links = linksOf(node);
+      if (node.nodeType === 3 ? BULLET_RE.test(node.textContent) : !node.textContent.trim() && !node.matches(MEDIA) && !node.querySelector(MEDIA)) {
+        // 記号・改行・改行だけの飾り (<span><b><br></b></span> など) は列を切らない
         run.push(node);
-      } else if (t && t.length <= 30 && (PROMO_START_RE.test(t) || LABEL_RE.test(t))) {
-        // 「★今週のおすすめ」などの見出しから始まる列は、見出しごと除く
+      } else if (isHead(node) || (t && t.length <= 30 && (PROMO_START_RE.test(t) || LABEL_RE.test(t)))) {
+        // 「★今週のおすすめ」などの見出しから始まる列は、見出しごと除く。
+        // レスの見出しのすぐ後にリンクしかないもの (「1000：」のレスに見せかけた宣伝) も、見出しごと除く
         flush();
         run.push(node);
-      } else if (promoAnchor(node)) {
+      } else if (links) {
         run.push(node);
-        count++;
+        promo += links.promo;
+        other += links.other;
       } else {
         flush();
       }
@@ -767,9 +793,10 @@ function tidy(root, ctx) {
   }
 
   // 3) 他の記事へのリンクばかりの一覧 (関連記事・人気記事など) は、長さによらず丸ごと除く (本文の半分を超えるものは残す)。
-  //    よそのサイトへのリンクが混ざっていても途中で切れて残らないよう、リンクの列より先に行う
+  //    よそのサイトへのリンクが混ざっていても途中で切れて残らないよう、リンクの列より先に行う。
+  //    レスの見出しのすぐ後のものは、見出しごと除けるよう、リンクの列のほうで扱う
   for (const el of [...root.querySelectorAll("*")].reverse()) {
-    if (!root.contains(el)) continue;
+    if (!root.contains(el) || isHead(prevContent(el))) continue;
     const text = el.textContent.replace(/\s+/g, " ").trim();
     if (text.length < ctx.totalLen * 0.5 && countPosts(text) === 0 && isPromoList(el, text, ctx, 5, 0.7)) removeBlock(el);
   }
