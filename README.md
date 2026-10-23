@@ -21,6 +21,18 @@
 > また、リポジトリに60日間pushがないとGitHubがスケジュール実行を自動停止します。これを防ぐため、最後のコミットから50日経つとワークフローが空コミットを自動で積みます。
 > それでも止まった場合は **Actions タブ → `update` → 「Enable workflow」** で再有効化してください。
 
+### 30分ごとに更新するための設定(最初に1回だけ)
+
+GitHub の定期実行は混雑時に大きく間引かれ、1日に数回しか動かないことがあります。
+そこで `timer` ワークフローが「30分待つ → 更新を起動する」をくり返します。待ち時間を作るため、次の設定をします。
+
+1. **Settings → Environments → `update-timer`** を開く(一覧になければ「New environment」で `update-timer` を作る)
+2. **Wait timer** にチェックを入れて `30` を入力し、**Save protection rules** を押す
+
+- 待っている間は GitHub のマシンを使わないので、無料のままです
+- タイマーが止まっても、数時間以内に自動で起動し直します。すぐ動かしたいときは **Actions タブ → `timer` → 「Run workflow」**
+- 設定しないときは、`update` の定期実行だけで(数時間おきに)更新されます
+
 ## スマホのホーム画面に追加(アプリ化)
 
 - **iPhone (Safari)**: ページを開く → 共有ボタン → **「ホーム画面に追加」**
@@ -106,8 +118,9 @@
 
 ## 更新頻度を変える
 
-[`.github/workflows/update.yml`](.github/workflows/update.yml) の `cron` を編集します(UTC表記)。
-例: `*/20 * * * *` = 20分ごと。GitHub の仕様上、指定時刻より数分〜数十分遅れることがあります。
+**Settings → Environments → `update-timer`** の Wait timer の分数を変えます(例: `60` = 1時間ごと)。
+10分より短くすると、待たずに何度も更新が動くのを防ぐため、タイマーが止まります。
+[`.github/workflows/update.yml`](.github/workflows/update.yml) の `cron` は予備です(GitHub 側で間引かれ、1日に数回しか動きません)。
 
 ## ローカルでの開発
 
@@ -132,7 +145,7 @@ node scripts/build-map.mjs
 ## 仕組み
 
 ```
-GitHub Actions (30分ごと)
+GitHub Actions (timer ワークフローが30分ごとに起動)
   ├─ scripts/fetch.mjs が feeds.json の各RSSを取得・整形 → public/data.json
   ├─ scripts/build-articles.mjs がまとめ記事の本文を取り出し、広告・宣伝・コメント欄を除く → public/articles/
   ├─ scripts/fetch-world.mjs が world-feeds.json の各RSSを取得
