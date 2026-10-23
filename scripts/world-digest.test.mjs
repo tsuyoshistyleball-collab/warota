@@ -62,32 +62,43 @@ test("本文から写真の説明・日付・見出しを除き、文として�
   ]);
 });
 
-test("本文を読みに行く記事は、読みやすい報道機関から1社1本ずつ (NHK と Google ニュースは読まない)", { skip }, () => {
+test("本文を読みに行く記事は、代表記事 → 見出しの近い記事の順に、1社1本ずつ (NHK と Google ニュース、別の出来事の記事は読まない)", { skip }, () => {
   const list = mod.textSources({
     source: "NHK",
+    title: "フィンランド 「核のごみ」最終処分場に政府が操業許可",
     url: "https://news.web.nhk/newsweb/na/nd-1",
     coverage: [
-      { s: "朝日新聞", u: "https://www.asahi.com/articles/1.html" },
-      { s: "毎日新聞", u: "https://news.google.com/rss/articles/CBMi" },
-      { s: "BBC", u: "https://www.bbc.com/japanese/articles/1" },
-      { s: "ABEMA TIMES", u: "https://news.yahoo.co.jp/articles/1" },
-      { s: "AFP", u: "https://www.afpbb.com/articles/-/1" },
-      { s: "AFP", u: "https://www.afpbb.com/articles/-/2" },
+      { s: "朝日新聞", t: "フィンランド、核のごみ最終処分場の操業を許可 世界初", u: "https://www.asahi.com/articles/1.html" },
+      { s: "毎日新聞", t: "フィンランド、核のごみ処分場の操業許可", u: "https://news.google.com/rss/articles/CBMi" },
+      { s: "BBC", t: "核のごみの最終処分場、フィンランドで操業へ", u: "https://www.bbc.com/japanese/articles/1" },
+      { s: "ABEMA TIMES", t: "原発の高レベル放射性廃棄物 フィンランドで処分場", u: "https://news.yahoo.co.jp/articles/1" },
+      { s: "共同通信", t: "スウェーデン議会、原発の新設を承認", u: "https://news.yahoo.co.jp/articles/2" },
+      { s: "AFP", t: "フィンランド、核廃棄物処分場「オンカロ」の操業許可", u: "https://www.afpbb.com/articles/-/1" },
+      { s: "AFP", t: "同じ社の2本目", u: "https://www.afpbb.com/articles/-/2" },
     ],
   });
   assert.deepEqual(list.map((s) => s.outlet), ["AFP", "BBC", "ABEMA TIMES", "朝日新聞"]);
+  const sim = mod.titleSimilarity;
+  assert.ok(sim("メタ社に制裁金約4兆円判決", "メタに約4兆円支払い命令") > 0.12);
+  assert.ok(sim("UAE前大使が立候補 難航の国連事務総長選", "新潟市長選 市政の課題② 子育て世代が求める支援は？") < 0.12);
 });
 
 test("AI の答えの形を確かめ、記事の冒頭から要約を作ることもできる", { skip }, () => {
-  assert.throws(() => mod.normalizeDigest({ lead: "", points: ["a", "b"] }));
+  assert.throws(() => mod.normalizeDigest({ lead: "", points: ["a", "b"] }), mod.NoMatchingArticle);
   assert.throws(() => mod.normalizeDigest({ lead: "何かが起きました。", points: ["1つだけ"] }));
-  const d = mod.normalizeDigest({ lead: " 何かが\n起きました。 ", points: ["一つ目。", "", "二つ目。"], background: 3 });
-  assert.deepEqual(d, { lead: "何かが 起きました。", points: ["一つ目。", "二つ目。"], background: "", next: "" });
+  const d = mod.normalizeDigest({ lead: " 何かが\n起きました。 ", points: ["一つ目。", "", "二つ目。"], background: 3, used: [1, "2", 3] });
+  assert.deepEqual(d, { lead: "何かが 起きました。", points: ["一つ目。", "二つ目。"], background: "", next: "", used: [1, 3] });
 
   const lead = mod.leadDigest(AFP.join("\n"));
   assert.equal(lead.lead, AFP[0]);
   assert.ok(lead.points.length >= 1 && lead.points.length <= 3);
   assert.equal(mod.clipText(["一つ目の文です。二つ目の文です。", "次の段落です。"], 12), "一つ目の文です。");
+  // かぎかっこの中の「。」では区切らず、文の終わりのない切れ端 (写真の説明など) は捨てる
+  assert.deepEqual(mod.sentencesOf("長官は「法令を守るのは当然だ。重く受け止めている」と謝罪した。\n［SNS キャプチャー］（中央日報日本語版）\n戦争は終わりに近づいたのだろうか？\n次の段落に書かれた文です。"), [
+    "長官は「法令を守るのは当然だ。重く受け止めている」と謝罪した。",
+    "戦争は終わりに近づいたのだろうか？",
+    "次の段落に書かれた文です。",
+  ]);
 });
 
 test("前回の要約は記事の URL で探し、新しい話題・AI でのまとめ直し・続報を決める", { skip }, () => {
@@ -111,17 +122,19 @@ test("各社の記事を読んで AI で要約し、次の実行では前回の�
   pages.set("/afp/1", article("シャモンダウイルスのヒト感染初確認", AFP));
   pages.set("/bbc/1", article("シャモンダウイルス、ヒト感染例を初めて確認", BBC));
   pages.set("/afp/2", article("別の話題", ["短い。"]));
-  const item = (id, url, coverage, outlets) => ({ id, title: `見出し${id}`, summary: "NHKの概要文です。", url, source: "NHK", coverage, outlets });
+  const TITLE = "シャモンダウイルスのヒトへの感染を初確認 フランス";
+  const item = (id, title, url, coverage, outlets) => ({ id, title, summary: "NHKの概要文です。", url, source: "NHK", coverage, outlets });
+  const cov = (s, t, u) => ({ s, t, u });
   const world = {
     regions: [
       {
         id: "europe",
         items: [
-          item("t1", "https://news.web.nhk/newsweb/na/nd-1", [{ s: "AFP", u: `${BASE}/afp/1` }, { s: "BBC", u: `${BASE}/bbc/1` }], 3),
-          item("t2", `${BASE}/afp/2`, [], 1),
+          item("t1", TITLE, "https://news.web.nhk/newsweb/na/nd-1", [cov("AFP", "シャモンダウイルスのヒト感染初確認、患者は死亡 フランス", `${BASE}/afp/1`), cov("BBC", "シャモンダウイルス、ヒト感染例を初めて確認 フランス", `${BASE}/bbc/1`)], 3),
+          item("t2", "別の話題", `${BASE}/afp/2`, [], 1),
         ],
       },
-      { id: "asia", items: [item("t1", "https://news.web.nhk/newsweb/na/nd-1", [{ s: "AFP", u: `${BASE}/afp/1` }], 3)] },
+      { id: "asia", items: [item("t1", TITLE, "https://news.web.nhk/newsweb/na/nd-1", [cov("AFP", "シャモンダウイルスのヒト感染初確認、患者は死亡 フランス", `${BASE}/afp/1`)], 3)] },
     ],
   };
   const dir = await mkdtemp(path.join(tmpdir(), "world-digest-"));
@@ -132,7 +145,8 @@ test("各社の記事を読んで AI で要約し、次の実行では前回の�
     messages: {
       create: async (req) => {
         calls.push(req);
-        const answer = { lead: "フランスでシャモンダウイルスのヒト感染が初めて確認されました。", points: ["感染した70代の男性は死亡しました。", "虫を介して広がるとみられます。"], background: "主に家畜の病気です。", next: "" };
+        // 2本目 (BBC) は使わなかったと答える
+        const answer = { lead: "フランスでシャモンダウイルスのヒト感染が初めて確認されました。", points: ["感染した70代の男性は死亡しました。", "虫を介して広がるとみられます。"], background: "主に家畜の病気です。", next: "", used: [1, 3] };
         return { stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(answer) }], usage: { input_tokens: 1000, output_tokens: 200 } };
       },
     },
@@ -143,17 +157,17 @@ test("各社の記事を読んで AI で要約し、次の実行では前回の�
   assert.equal(calls.length, 1); // 本文が短すぎる話題は AI に渡さない
   assert.equal(calls[0].model, "claude-haiku-5-5");
   const prompt = calls[0].messages[0].content;
-  assert.ok(prompt.includes("70代の男性") && prompt.includes("7月下旬") && prompt.includes("NHKの概要文です。"));
+  assert.ok(prompt.includes(TITLE) && prompt.includes("70代の男性") && prompt.includes("7月下旬") && prompt.includes("NHKの概要文です。"));
   assert.ok(!prompt.includes("注目の記事") && !prompt.includes("＝ロイター") && !prompt.includes("発信地"));
   assert.equal(t1.digest.by, "ai");
-  assert.deepEqual(t1.digest.sources, ["AFP", "BBC", "NHK"]);
+  assert.deepEqual(t1.digest.sources, ["AFP", "NHK"]); // 答えで使ったとされた記事だけ
   assert.deepEqual(out.regions[1].items[0].digest, t1.digest); // 2つの地域に入った同じ話題
   assert.equal(t2.digest, undefined);
 
   // 次の実行: 前回の要約を公開先から読み、AI がなくても使う (代表記事が入れ替わっても、同じ記事を含めば同じ話題)
   pages.set("/world-digest.json", await readFile(path.join(dir, "world-digest.json"), "utf8"));
-  world.regions[0].items[0] = item("t1b", `${BASE}/bbc/1`, [{ s: "AFP", u: `${BASE}/afp/1` }], 3);
-  world.regions[0].items.push(item("t3", "https://news.web.nhk/newsweb/na/nd-3", [{ s: "共同通信", u: `${BASE}/missing` }], 2));
+  world.regions[0].items[0] = item("t1b", TITLE, `${BASE}/bbc/1`, [cov("AFP", "シャモンダウイルス", `${BASE}/afp/1`)], 3);
+  world.regions[0].items.push(item("t3", "共同通信だけが伝えた話題の見出し", "https://news.web.nhk/newsweb/na/nd-3", [cov("共同通信", "共同通信だけが伝えた話題の見出し", `${BASE}/missing`)], 2));
   await writeFile(path.join(dir, "world.json"), JSON.stringify(world));
   await mod.run({ outDir: dir, client: null });
   const out2 = JSON.parse(await readFile(path.join(dir, "world.json"), "utf8"));
@@ -165,16 +179,28 @@ test("各社の記事を読んで AI で要約し、次の実行では前回の�
   assert.ok(saved.some((d) => d.by === "none" && d.urls.includes(`${BASE}/missing`)));
 });
 
-test("AI がないときは、いちばん読みやすい記事の冒頭の文を要約にする", { skip }, async () => {
+test("AI がないときは、代表記事か見出しのかなり近い記事の冒頭の文を要約にし、別の出来事の記事は使わない", { skip }, async () => {
   pages.set("/afp/3", article("別のシャモンダウイルスの記事", AFP));
+  pages.set("/kyodo/9", article("デジタル庁の委託先に不正アクセス", ["デジタル庁は22日、委託先の企業が不正アクセスを受け、最大約1万3000件の個人情報が漏えいした可能性があると発表した。問い合わせフォームに入力された氏名やメールアドレスが流出した可能性がある。"]));
   pages.delete("/world-digest.json");
-  const world = { regions: [{ id: "europe", items: [{ id: "t9", title: "見出し", url: "https://news.web.nhk/n/1", source: "NHK", coverage: [{ s: "AFP", u: `${BASE}/afp/3` }], outlets: 2 }] }] };
+  const world = {
+    regions: [
+      {
+        id: "europe",
+        items: [
+          { id: "t9", title: "シャモンダウイルスのヒトへの感染を初確認 フランス", url: "https://news.web.nhk/n/1", source: "NHK", coverage: [{ s: "AFP", t: "シャモンダウイルスのヒト感染初確認、患者は死亡 フランス", u: `${BASE}/afp/3` }], outlets: 2 },
+          { id: "t10", title: "カプコン 会員サービスに不正アクセス 個人情報1100万件以上漏えい", url: "https://news.web.nhk/n/2", source: "NHK", coverage: [{ s: "共同通信", t: "デジタル庁の委託先に不正アクセス 個人情報1万3千件漏えいか", u: `${BASE}/kyodo/9` }], outlets: 2 },
+        ],
+      },
+    ],
+  };
   const dir = await mkdtemp(path.join(tmpdir(), "world-digest-"));
   await writeFile(path.join(dir, "world.json"), JSON.stringify(world));
   await mod.run({ outDir: dir, client: null });
   const out = JSON.parse(await readFile(path.join(dir, "world.json"), "utf8"));
-  const d = out.regions[0].items[0].digest;
+  const [d, other] = out.regions[0].items.map((it) => it.digest);
   assert.equal(d.by, "lead");
   assert.deepEqual(d.sources, ["AFP"]);
   assert.equal(d.lead, AFP[0]);
+  assert.equal(other, undefined);
 });
