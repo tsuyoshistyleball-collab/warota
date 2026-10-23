@@ -614,6 +614,25 @@
     return h("p", { class: "sum-text" }, text);
   }
 
+  // 各社の記事の本文から作った要約 (何が起きたか → ポイント → 背景・用語 → 今後)
+  function digestBlock(d) {
+    const extra = (title, text) => (text ? h("div", { class: "sum-extra" }, h("h4", {}, title), h("p", {}, text)) : null);
+    return [
+      h("p", { class: "sum-lead" }, d.lead),
+      d.points?.length ? h("ul", { class: "sum-list" }, d.points.map((p) => h("li", {}, p))) : null,
+      extra("背景・用語", d.background),
+      extra("今後", d.next),
+    ];
+  }
+
+  function summaryNote(it) {
+    const d = it.digest;
+    const from = d?.sources?.length ? d.sources.join("・") : it.source;
+    if (d?.by === "ai") return `${from}の記事をもとにAIがまとめました。細かな点は元記事でご確認ください`;
+    if (d) return `${from}の記事の冒頭を表示しています`;
+    return `${it.source}が配信した記事の概要をもとに表示しています`;
+  }
+
   function renderArticle(regionId, itemId) {
     // 同じ記事を表示中なら作り直さない (自動更新で読んでいる位置が先頭に戻らないように)
     const key = `${regionId}/${itemId}`;
@@ -651,9 +670,19 @@
       h(
         "section",
         { class: "sum-card", "aria-label": "要約" },
-        h("h3", {}, h("span", { class: "sum-icon", html: ICONS.spark }), "要約"),
-        it.summary ? summaryBlock(it.summary) : h("p", { class: "sum-text muted" }, "この記事には要約がありません。元記事でご確認ください。"),
-        h("p", { class: "sum-note" }, `${it.source}が配信した記事の概要をもとに表示しています`),
+        h(
+          "h3",
+          {},
+          h("span", { class: "sum-icon", html: ICONS.spark }),
+          "要約",
+          it.digest?.by === "ai" ? h("span", { class: "sum-badge" }, "AI") : null,
+        ),
+        it.digest
+          ? digestBlock(it.digest)
+          : it.summary
+            ? summaryBlock(it.summary)
+            : h("p", { class: "sum-text muted" }, "この記事には要約がありません。元記事でご確認ください。"),
+        h("p", { class: "sum-note" }, summaryNote(it)),
       ),
       url
         ? h(

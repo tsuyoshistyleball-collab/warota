@@ -18,10 +18,12 @@ if (url === "world-probe" || url === "world") {
   process.exit(0);
 }
 
-// "world-text" なら、世界ニュースの記事ページから本文が取れるかを配信元ごとに確かめる
-if (url.startsWith("world-text")) {
-  const { probe } = await import("./world-digest.mjs");
-  await probe(Number(url.split(/\s+/)[1]) || 3);
+// "world-text" なら、世界ニュースの記事ページから本文が取れるかを配信元ごとに確かめる。
+// "world-digest" なら、公開中の世界ニュースの上位の話題に付いた要約を表示する
+if (url.startsWith("world-text") || url.startsWith("world-digest")) {
+  const { probe, show } = await import("./world-digest.mjs");
+  const n = Number(url.split(/\s+/)[1]) || 3;
+  await (url.startsWith("world-text") ? probe(n) : show(n));
   process.exit(0);
 }
 

@@ -41,7 +41,14 @@ jobs:
         run: node scripts/fetch-world.mjs
         continue-on-error: true
       - name: Install extractor deps
-        run: npm install --no-save --no-package-lock --no-audit --no-fund linkedom @mozilla/readability
+        run: npm install --no-save --no-package-lock --no-audit --no-fund linkedom @mozilla/readability @anthropic-ai/sdk
+      # 世界ニュースの話題ごとに各社の記事を読んで要約する。リポジトリの Secrets に ANTHROPIC_API_KEY があれば
+      # Claude で分かりやすくまとめ、なければ記事の冒頭の文を使う。失敗しても配信元の概要文で表示できるので止めない
+      - name: Summarize world news
+        run: node scripts/world-digest.mjs
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       - name: Build reader articles
         run: node scripts/build-articles.mjs
       # debug-urls.txt にURLを書いておくと抽出診断がログに出る (メンテ用)
