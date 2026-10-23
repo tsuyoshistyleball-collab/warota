@@ -18,6 +18,13 @@ if (url === "world-probe" || url === "world") {
   process.exit(0);
 }
 
+// "world-text" なら、世界ニュースの記事ページから本文が取れるかを配信元ごとに確かめる
+if (url.startsWith("world-text")) {
+  const { probe } = await import("./world-digest.mjs");
+  await probe(Number(url.split(/\s+/)[1]) || 3);
+  process.exit(0);
+}
+
 // "audit 0-9 2" なら feeds.json の0〜9番目のサイトの最新2記事ずつ、本文抽出の結果を点検する
 if (url.startsWith("audit")) {
   const { audit } = await import("./audit-articles.mjs");
