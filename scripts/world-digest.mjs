@@ -247,9 +247,14 @@ export function sentencesOf(text) {
   return out.filter((s) => s.length >= 10);
 }
 
-// AI を使わないときの要約: 記事の冒頭の文をそのまま使う
+// 写真の説明らしい文 (短く、名詞やかっこで終わる「〜部長。」「〜（左）と〜特使。」など)
+const isCaption = (s) => (s.length <= 60 && /[一-龠々ァ-ヶーA-Za-z0-9）)]。$/.test(s)) || /[（(](左|右|中央)[)）]/.test(s);
+
+// AI を使わないときの要約: 記事の冒頭の文をそのまま使う (冒頭にある写真の説明は飛ばす)
 export function leadDigest(text) {
-  const sentences = sentencesOf(text);
+  const all = sentencesOf(text);
+  const start = all.findIndex((s) => !isCaption(s));
+  const sentences = start < 0 ? [] : all.slice(start);
   if (sentences.length === 0) return null;
   const picked = [];
   let length = 0;

@@ -91,6 +91,10 @@ test("AI の答えの形を確かめ、記事の冒頭から要約を作るこ�
 
   const lead = mod.leadDigest(AFP.join("\n"));
   assert.equal(lead.lead, AFP[0]);
+  // 冒頭の写真の説明は飛ばす (本文の途中の短い文は残す)
+  const withCaption = mod.leadDigest(`北朝鮮労働党の金与正（キム・ヨジョン）部長。\n${AFP[0]}\n同社への制裁金としては過去最高額。`);
+  assert.equal(withCaption.lead, AFP[0]);
+  assert.deepEqual(withCaption.points, ["同社への制裁金としては過去最高額。"]);
   assert.ok(lead.points.length >= 1 && lead.points.length <= 3);
   assert.equal(mod.clipText(["一つ目の文です。二つ目の文です。", "次の段落です。"], 12), "一つ目の文です。");
   // かぎかっこの中の「。」では区切らず、文の終わりのない切れ端 (写真の説明など) は捨てる

@@ -39,6 +39,7 @@ const OUTLET_ALIASES = {
   "CNN.co.jp": "CNN", "Reuters": "ロイター", "ロイター通信": "ロイター", "FNNプライムオンライン": "FNN",
   "読売新聞オンライン": "読売新聞", "時事ドットコム": "時事通信", "日経": "日本経済新聞",
   "毎日新聞デジタル": "毎日新聞", "AFPBB News": "AFP", "BBCニュース": "BBC",
+  "テレビ朝日系（ANN）": "テレビ朝日", "TBS系（JNN）": "TBS", "日本テレビ系（NNN）": "日テレ", "フジテレビ系（FNN）": "FNN",
 };
 // 報道機関として扱う媒体。これ以外 (雑誌・個人系) だけが伝える話題は順位を下げる
 const NEWS_OUTLETS = new Set([
@@ -83,10 +84,10 @@ async function fetchAllFeeds(feeds) {
 
 // ---- 見出し・媒体名・概要文の整理 ----
 
-// Yahoo!ニュースの「…(共同通信)」、Googleニュースの「… - 読売新聞」から媒体名を分ける
-function splitOutlet(feed, title) {
+// Yahoo!ニュースの「…(共同通信)」「…(テレビ朝日系（ANN）)」、Googleニュースの「… - 読売新聞」から媒体名を分ける
+export function splitOutlet(feed, title) {
   let m = null;
-  if (feed.outletFrom === "paren") m = title.match(/^(.*\S)\s*[（(]([^（()）]{1,24})[)）]$/);
+  if (feed.outletFrom === "paren") m = title.match(/^(.*\S)\s*[（(]((?:[^（()）]|[（(][^（()）]{1,12}[)）]){1,30})[)）]$/);
   else if (feed.outletFrom === "dash") m = title.match(/^(.*\S)\s+-\s+([^-]{1,30})$/);
   const outlet = (m?.[2] ?? feed.outlet ?? feed.name).trim();
   return { title: m?.[1] ?? title, outlet: OUTLET_ALIASES[outlet] ?? outlet };
