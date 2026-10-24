@@ -307,3 +307,27 @@ export async function audit(spec = "") {
   );
   for (const [i] of targets) console.log(reports.get(i).join("\n"));
 }
+
+// 公開中の記事本文 (articles/<hash>.json) を、サイトごとに新しい順で per 件ずつ取り出してログに出す。
+// リーダーの見た目を変えるときに、手元で実際の記事の形を確かめるための見本 (1行1記事、gzip + base64)
+// usage: node scripts/debug-extract.mjs "reader-samples [1サイトあたりの記事数]"
+export async function samples(spec = "") {
+  const { gzipSync } = await import("node:zlib");
+  const per = Number(spec.trim()) || 1;
+  const base = process.env.PAGES_BASE ?? "https://tsuyoshistyleball-collab.github.io/warota";
+  const data = await (await fetch(`${base}/data.json`)).json();
+  const picked = new Map();
+  for (const [site, title, url, , hash] of data.items) {
+    if (!hash) continue;
+    const list = picked.get(site) ?? [];
+    if (list.length < per) picked.set(site, [...list, { title, url, hash }]);
+  }
+  for (const [site, list] of [...picked].sort((a, b) => a[0] - b[0])) {
+    for (const { title, url, hash } of list) {
+      const res = await fetch(`${base}/articles/${hash}.json`).catch(() => null);
+      if (!res?.ok) continue;
+      const json = JSON.stringify({ site: data.sites[site]?.name, title, url, ...(await res.json()) });
+      console.log(`SAMPLE\t${site}\t${gzipSync(json).toString("base64")}`);
+    }
+  }
+}

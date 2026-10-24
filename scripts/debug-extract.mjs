@@ -34,6 +34,13 @@ if (url.startsWith("audit")) {
   process.exit(0);
 }
 
+// "reader-samples 1" なら、公開中の記事本文をサイトごとに1件ずつ、見本としてログに出す
+if (url.startsWith("reader-samples")) {
+  const { samples } = await import("./audit-articles.mjs");
+  await samples(url.slice(14));
+  process.exit(0);
+}
+
 // "snip 29.0 なんじぇい ;; 49.0 sel:.tab_area" なら、元ページの該当箇所のHTMLと抽出結果の同じ場所を出す
 if (url.startsWith("snip")) {
   const { snip } = await import("./audit-articles.mjs");
