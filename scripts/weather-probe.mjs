@@ -318,3 +318,49 @@ export async function probe9() {
     }
   }
 }
+
+// 天気のタブ (public/weather.js) を、本物のデータで動かして表示を確かめる (画面の代わりに linkedom を使う)
+export async function runWeather(lat, lon, fetchImpl = fetch) {
+  const fs = await import("node:fs");
+  const { parseHTML } = await import("linkedom");
+  const { window, document } = parseHTML(fs.readFileSync("public/index.html", "utf8"));
+  Object.getPrototypeOf(Object.getPrototypeOf(document.createElement("div"))).scrollTo ??= () => {};
+  const store = new Map();
+  const localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+  const navigator = {
+    geolocation: { getCurrentPosition: (ok) => ok({ coords: { latitude: lat, longitude: lon } }) },
+    permissions: { query: async () => ({ state: "granted" }) },
+  };
+  window.World = { view: () => "matome" }; // 読み込んだだけでは取りに行かせない
+  // Node の fetch に無いオプション (cache) は外す
+  const f = (url, { cache, ...opts } = {}) => fetchImpl(url, opts);
+  new Function("window", "document", "localStorage", "navigator", "fetch", fs.readFileSync("public/weather.js", "utf8"))(
+    window, document, localStorage, navigator, f,
+  );
+  await window.Weather.refresh();
+  const text = (sel) => document.querySelector(sel)?.textContent.replace(/\s+/g, " ").trim() ?? "";
+  return {
+    place: text("#wx-place"),
+    sub: text("#wx-sub"),
+    warn: text(".wx-warn") || "(警報の欄なし)",
+    now: `${text(".wx-now-temp")} ${text(".wx-now-text")}`,
+    hours: document.querySelectorAll(".wx-col").length,
+    days: document.querySelectorAll(".wx-wrow").length,
+    msg: text(".wx-msg"),
+  };
+}
+
+export async function probe10() {
+  const places = [
+    ["東京駅", 35.6812, 139.7671], ["横浜市中区", 35.4437, 139.638], ["札幌市清田区", 42.9998, 141.4436],
+    ["大阪市北区", 34.7055, 135.4983], ["浜松市中央区", 34.7108, 137.7261], ["日光市", 36.7199, 139.6982],
+    ["那覇市", 26.2124, 127.6809], ["稚内市", 45.4156, 141.6731], ["海の上", 35.0, 150.0],
+  ];
+  for (const [name, lat, lon] of places) {
+    try {
+      console.log(`\n=== ${name}: ${JSON.stringify(await runWeather(lat, lon))}`);
+    } catch (err) {
+      console.log(`\n=== ${name}: NG ${err.stack}`);
+    }
+  }
+}
