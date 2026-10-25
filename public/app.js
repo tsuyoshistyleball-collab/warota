@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.8.0";
+const APP_VERSION = "2.9.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -536,7 +536,8 @@ $("btn-clear-read").onclick = () => {
     ptr.style.transform = `translateY(${PULL * 0.45}px)`;
     ring.style.transform = "";
     try {
-      await (window.World?.isActive() ? window.World.refresh() : loadData(true));
+      const view = window.World?.view();
+      await (view === "world" ? window.World.refresh() : view === "weather" ? window.Weather?.refresh() : loadData(true));
     } finally {
       hide();
       busy = false;

@@ -1563,6 +1563,219 @@ html[data-view="world"] body { background: var(--surface); }
   color: var(--fg-dim);
 }
 
+/* ===== 天気 =====
+   今の天気を大きく、その下に今日と明日、1時間ごと (横にスクロールする表)、週間予報。
+   広い画面では左に今の天気など、右に1時間ごとと週間予報 (折りたたみの折り目をまたがない) */
+html[data-view="weather"] body { background: var(--surface); }
+#view-weather {
+  --wx-hi: #c4342b; /* 最高気温 (日本の天気予報の慣習で赤) */
+  --wx-lo: #1f63c6; /* 最低気温 (青) */
+  --wx-rain: #2f7fd8; /* 降水確率の高い時間 */
+  --wx-temp: #e07100; /* 気温の線・週間予報の気温の幅 */
+  padding: 0 12px calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom));
+}
+.wx-head { padding: calc(14px + env(safe-area-inset-top)) 6px 12px; }
+.wx-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fg-dim);
+}
+.wx-eyebrow svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+#wx-place { margin: 2px 0 0; font-size: 23px; font-weight: 800; line-height: 1.25; text-wrap: balance; }
+.wx-sub { margin: 3px 0 0; font-size: 12px; color: var(--fg-dim); }
+.wx-body, .wx-colL, .wx-colR { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.wx-body.loading .wx-colL,
+.wx-body.loading .wx-colR { opacity: .55; transition: opacity .2s; }
+.wx-loading { margin: 24px 6px; color: var(--fg-dim); font-size: 14px; }
+.wx-card {
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px 16px;
+  min-width: 0;
+}
+.wx-h { margin: 0; font-size: 15px; font-weight: 800; line-height: 1.4; }
+.wx-h small { margin-left: 4px; font-size: 12px; font-weight: 600; color: var(--fg-dim); }
+.wx-ic { display: block; width: 34px; height: 34px; flex: none; }
+.wx-hi { color: var(--wx-hi); font-weight: 700; }
+.wx-lo { color: var(--wx-lo); font-weight: 700; }
+
+/* 警報・注意報 (色は警戒レベルの色: 注意報 黄 / 警報 赤 / 危険警報 紫 / 特別警報 黒) */
+.wx-warn { border-radius: 20px; background: var(--card); box-shadow: var(--shadow-sm); padding: 12px 16px 14px; }
+.wx-warn.none { padding: 10px 16px; }
+.wx-warn.none p { margin: 0; font-size: 13px; color: var(--fg-dim); }
+.wx-warn.none p::before { content: "✓ "; color: #2e7d32; font-weight: 800; }
+.wx-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+/* 色は気象庁の地図と同じ (注意報 黄 / 警報 赤 / 危険警報 紫 / 特別警報 黒)。警報の赤 (#ff2800) だけ、白い文字が読める濃さに少し暗くした */
+.wx-chip { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: 999px; font-size: 13.5px; font-weight: 800; line-height: 1.5; }
+.wx-chip.lv20 { background: #f2e700; color: #1a1a24; }
+.wx-chip.lv30 { background: #e02200; color: #fff; }
+.wx-chip.lv40 { background: #aa00aa; color: #fff; }
+.wx-chip.lv50 { background: #0c000c; color: #fff; }
+.wx-lvl { margin-right: 6px; padding: 0 5px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px currentColor; font-size: 11.5px; line-height: 1.6; }
+.wx-warea { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
+.wx-warea h3 { flex: none; width: 6.5em; margin: 0; font-size: 12.5px; font-weight: 700; line-height: 1.4; color: var(--ink-2); }
+.wx-warea .wx-chips { margin: 0; }
+.wx-wnone { margin: 0; font-size: 13px; color: var(--fg-dim); }
+.wx-more { margin: 10px 0 0; font-size: 12px; color: var(--fg-dim); }
+.wx-more a { font-weight: 700; color: var(--accent-ink); text-decoration: none; }
+
+/* 今の天気 */
+.wx-now-main { display: flex; align-items: center; gap: 12px; }
+.wx-now-main .wx-ic { width: 72px; height: 72px; }
+.wx-now-temp { margin: 0; font-size: 52px; font-weight: 700; line-height: 1; letter-spacing: -.02em; }
+.wx-now-text { margin: 6px 0 0; font-size: 15px; font-weight: 700; color: var(--ink-2); }
+.wx-facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.wx-facts div { min-width: 0; }
+.wx-facts dt { font-size: 11px; font-weight: 700; color: var(--fg-dim); }
+.wx-facts dd { margin: 1px 0 0; font-size: 15px; font-weight: 700; white-space: nowrap; }
+
+/* 今日・明日 */
+.wx-days { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.wx-day-main { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.wx-day-main .wx-ic { width: 42px; height: 42px; }
+.wx-day-main p { margin: 0; font-size: 13.5px; font-weight: 700; line-height: 1.35; }
+.wx-day-temp { margin: 8px 0 0; font-size: 20px; }
+.wx-sep { margin: 0 4px; color: var(--fg-dim); font-weight: 400; }
+.wx-day-pop { margin: 2px 0 0; font-size: 12px; color: var(--fg-dim); }
+.wx-day-pop b { color: var(--fg); font-size: 14px; }
+
+/* 1時間ごと: 左に項目名、右は横にスクロール。気温の線は天気のアイコンと気温の数字の間に引く */
+.wx-hgrid { display: flex; margin: 10px -16px 0 0; }
+.wx-rowlabels {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: 52px;
+  padding-top: 100px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--fg-dim);
+}
+.wx-rowlabels span:nth-child(-n+2) { display: none; }
+.wx-rowlabels span { height: 24px; line-height: 24px; white-space: nowrap; }
+.wx-rowlabels small { margin-left: 1px; font-size: 9px; }
+.wx-scroll {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding-right: 16px;
+}
+.wx-scroll::-webkit-scrollbar { display: none; }
+.wx-scroll:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; border-radius: 8px; }
+.wx-track { position: relative; }
+.wx-curve { position: absolute; left: 0; top: 54px; overflow: visible; }
+.wx-curve-line { fill: none; stroke: var(--wx-temp); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.wx-curve-area { fill: var(--wx-temp); opacity: .1; }
+.wx-curve-now { fill: var(--wx-temp); stroke: var(--card); stroke-width: 2; }
+.wx-cols { display: flex; }
+.wx-col {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+.wx-col .wx-t { height: 20px; font-size: 12px; font-weight: 700; color: var(--fg-dim); }
+.wx-col .wx-ic { width: 34px; height: 34px; }
+.wx-col .wx-temp { height: 24px; margin-top: 46px; line-height: 24px; font-size: 14px; font-weight: 700; }
+.wx-col .wx-pop,
+.wx-col .wx-mm { height: 24px; line-height: 24px; font-size: 12.5px; color: var(--fg-dim); }
+.wx-col .wet { color: var(--wx-rain); font-weight: 800; }
+.wx-nowcol .wx-t { color: var(--accent-ink); }
+.wx-newday { box-shadow: inset 1px 0 var(--line); }
+.wx-newday .wx-t { color: var(--fg); }
+
+/* 週間予報: 気温の幅は1週間で共通の目盛り */
+.wx-weeklist { margin: 6px 0 0; padding: 0; list-style: none; }
+.wx-wrow {
+  display: grid;
+  grid-template-columns: 46px 34px minmax(0, 1fr) 38px 34px minmax(56px, 1.2fr) 34px;
+  align-items: center;
+  gap: 6px;
+  min-height: 50px;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.wx-wrow:first-child { border-top: 0; }
+.wx-wday b { display: block; font-size: 14px; line-height: 1.2; }
+.wx-wday small { font-size: 11px; color: var(--fg-dim); }
+.wx-wrow.sun .wx-wday b { color: var(--wx-hi); }
+.wx-wrow.sat .wx-wday b { color: var(--wx-lo); }
+.wx-wtext { font-size: 12.5px; font-weight: 600; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wx-wpop { font-size: 12.5px; color: var(--wx-rain); font-weight: 700; text-align: right; }
+.wx-wrow .wx-lo, .wx-wrow .wx-hi { font-size: 14px; text-align: right; }
+.wx-wrow .wx-hi { text-align: left; }
+.wx-bar { position: relative; height: 6px; border-radius: 3px; background: var(--line); }
+.wx-bar > i { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: var(--wx-temp); }
+.wx-bar > .wx-bar-now {
+  top: 50%;
+  bottom: auto;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 0 0 2px var(--card);
+}
+/* 狭い画面では天気の文字を省く (アイコンと読み上げの説明で分かる) */
+@media (max-width: 429.98px) {
+  .wx-wrow { grid-template-columns: 44px 32px 38px 32px minmax(48px, 1fr) 32px; }
+  .wx-wtext { display: none; }
+}
+
+/* 位置情報のお願い・エラー */
+.wx-msg p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.7; color: var(--ink-2); }
+.wx-btn {
+  margin-top: 12px;
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 20px;
+  background: var(--accent-ink);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.wx-btn:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 3px; }
+.wx-credit { margin: 4px 6px 0; font-size: 11px; line-height: 1.7; color: var(--fg-dim); }
+.wx-credit a { color: inherit; }
+
+@media (min-width: 600px) {
+  #view-weather {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    column-gap: 20px;
+    max-width: 1320px;
+    margin: 0 auto;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .wx-head { grid-column: 1 / -1; }
+  .wx-body { display: contents; }
+  .wx-colL { grid-column: 1; }
+  .wx-colR { grid-column: 2; }
+  .wx-credit, .wx-loading, .wx-body > .wx-msg { grid-column: 1 / -1; }
+}
+
 /* ===== 設定画面 ===== */
 html[data-view="settings"] body { background: var(--surface); }
 
