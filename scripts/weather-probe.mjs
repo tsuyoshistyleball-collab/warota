@@ -177,3 +177,50 @@ export async function probe4() {
     }
   }
 }
+
+// 新しい警報・注意報のデータの、電文の種類 (dataTypeCode) ごとのコードと、名前の表のありかを調べる
+export async function probe5() {
+  const base = "https://www.jma.go.jp/bosai/warning/data/r8/";
+  const area = await (await fetch("https://www.jma.go.jp/bosai/common/const/area.json")).json();
+  const byType = new Map(); // dataTypeCode → { n, codes: Map(code → Set(status)), sample, heads: Set }
+  const kindKeys = new Set();
+  for (const office of Object.keys(area.offices)) {
+    let list = [];
+    try {
+      list = await (await fetch(base + office + ".json")).json();
+    } catch {
+      continue;
+    }
+    for (const r of list) {
+      const t = byType.get(r.dataTypeCode) ?? { n: 0, codes: new Map(), sample: null, heads: new Set(), keys: new Set() };
+      byType.set(r.dataTypeCode, t);
+      t.n++;
+      for (const k of Object.keys(r)) t.keys.add(k);
+      if (t.heads.size < 4 && r.headlineText) t.heads.add(r.headlineText.slice(0, 60));
+      for (const [group, items] of Object.entries(r.warning ?? {})) {
+        for (const it of items ?? []) {
+          for (const k of it.kinds ?? []) {
+            for (const key of Object.keys(k)) kindKeys.add(`${group}.${key}`);
+            const set = t.codes.get(k.code ?? "-") ?? new Set();
+            set.add(k.status);
+            t.codes.set(k.code ?? "-", set);
+            if (!t.sample && k.code && k.status !== "解除") t.sample = JSON.stringify(r).slice(0, 1800);
+          }
+        }
+      }
+    }
+  }
+  console.log(`kind keys: ${[...kindKeys].join(" ")}`);
+  for (const [type, t] of [...byType].sort()) {
+    console.log(`\n### ${type} reports=${t.n} keys=${[...t.keys].join(",")}`);
+    console.log(`codes: ${[...t.codes].map(([c, s]) => `${c}:${[...s].join("/")}`).join("  ")}`);
+    console.log(`heads: ${[...t.heads].join(" | ")}`);
+    if (t.sample) console.log(`sample: ${t.sample}`);
+  }
+  // ページのスクリプトから、コードと名前の表を探す
+  const html = await (await fetch("https://www.jma.go.jp/bosai/warning/")).text();
+  for (const re of [/VPWW5\d/g, /危険警報/g, /土砂災害/g, /"10":/g, /code:"10"/g, /大雨/g]) {
+    const hits = [...html.matchAll(re)].slice(0, 2);
+    for (const m of hits) console.log(`--- [${re.source}] ${html.slice(Math.max(0, m.index - 300), m.index + 600).replace(/\s+/g, " ")}`);
+  }
+}
