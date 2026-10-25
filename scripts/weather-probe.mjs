@@ -111,3 +111,22 @@ export async function probe2() {
     console.log(html.replace(/\s+/g, " ").slice(0, 6000));
   }
 }
+
+// 気象庁の警報のページ (と防災情報のトップ) の中に書かれているデータの場所を一覧にする
+export async function probe3() {
+  for (const url of ["https://www.jma.go.jp/bosai/warning/", "https://www.jma.go.jp/bosai/"]) {
+    const html = await (await fetch(url)).text();
+    const found = new Set();
+    for (const m of html.matchAll(/["'`]([^"'`\s<>]{0,160}?(?:\.json|data\/|const\/)[^"'`\s<>]{0,120})["'`]/g)) found.add(m[1]);
+    console.log(`\n=== ${url}: ${found.size} paths`);
+    for (const p of [...found].slice(0, 200)) console.log(`  ${p}`);
+    // 警報の名前の表 (大雨警報・危険警報など) がありそうな所
+    for (const word of ["危険警報", "大雨警報", "warning/data", "warning_level", "elems"]) {
+      let at = html.indexOf(word);
+      for (let i = 0; at >= 0 && i < 2; i++) {
+        console.log(`--- [${word}] ${html.slice(Math.max(0, at - 400), at + 400).replace(/\s+/g, " ")}`);
+        at = html.indexOf(word, at + 1);
+      }
+    }
+  }
+}
