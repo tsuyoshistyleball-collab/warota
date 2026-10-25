@@ -35,9 +35,9 @@ if (url.startsWith("audit")) {
 }
 
 // "weather-probe" なら、天気のページで使うデータの取り方 (ブラウザから読めるか・データの形) を確かめる
-if (url === "weather-probe") {
-  const { probe } = await import("./weather-probe.mjs");
-  await probe();
+if (url === "weather-probe" || url === "weather-probe2") {
+  const { probe, probe2 } = await import("./weather-probe.mjs");
+  await (url === "weather-probe" ? probe() : probe2());
   process.exit(0);
 }
 

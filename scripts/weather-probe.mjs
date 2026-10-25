@@ -88,3 +88,26 @@ export async function probe() {
     }
   }
 }
+
+// 警報・注意報のデータがいつ更新されたか (地域ごと) と、気象庁の警報のページが読んでいるデータを調べる
+export async function probe2() {
+  const area = await (await fetch("https://www.jma.go.jp/bosai/common/const/area.json")).json();
+  const dates = [];
+  for (const office of Object.keys(area.offices)) {
+    try {
+      const w = await (await fetch(`https://www.jma.go.jp/bosai/warning/data/warning/${office}.json`)).json();
+      dates.push(`${office}:${w.reportDatetime}`);
+    } catch (err) {
+      dates.push(`${office}:NG`);
+    }
+  }
+  dates.sort((a, b) => a.split(":").slice(1).join(":").localeCompare(b.split(":").slice(1).join(":")));
+  console.log(`oldest: ${dates.slice(0, 5).join(" ")}`);
+  console.log(`newest: ${dates.slice(-8).join(" ")}`);
+
+  for (const url of ["https://www.jma.go.jp/bosai/warning/", "https://www.jma.go.jp/bosai/"]) {
+    const html = await (await fetch(url)).text();
+    console.log(`\n=== ${url} (${html.length})`);
+    console.log(html.replace(/\s+/g, " ").slice(0, 6000));
+  }
+}
