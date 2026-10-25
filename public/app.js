@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.7.0";
+const APP_VERSION = "2.8.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -265,6 +265,7 @@ async function openReader(info, replace = false) {
     if (!res.ok) throw new Error();
     const article = await res.json();
     box.innerHTML = article.html;
+    window.Thread?.open(box);
     renderRelated(article.related);
   } catch {
     box.innerHTML =
@@ -321,6 +322,7 @@ function renderRelated(list) {
 }
 
 function closeReader() {
+  window.Thread?.close();
   readerEl.hidden = true;
   readerOpen = false;
   readerStack = [];
@@ -330,6 +332,8 @@ function closeReader() {
 }
 
 window.addEventListener("popstate", () => {
+  // >>5 などで開いたレスの表示は、記事より先に閉じる
+  if (window.Thread?.onPopState()) return;
   if (!readerOpen) return;
   readerStack.pop();
   if (readerStack.length > 0) {

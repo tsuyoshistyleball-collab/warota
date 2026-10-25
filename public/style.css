@@ -21,6 +21,18 @@
   --shadow-md: 0 1px 2px rgba(16, 24, 40, .04), 0 6px 20px rgba(16, 24, 40, .08);
   --tabbar-h: 60px;
   --ease: cubic-bezier(.32, .72, 0, 1);
+  /* まとめ記事 (スレ) の見た目。背景の選択 (.look-th-*) で入れ替える */
+  --k: 1; /* 文字の大きさの倍率 */
+  --r-head: #5c8022; /* レスの見出し */
+  --r-link: #b35600; /* >>5 などのアンカー */
+  --r-op: #b35600; /* スレ主の文字・印 */
+  --r-op-bg: #fff4e8; /* カード表示のスレ主のレス */
+  --r-page: #f2f3f6; /* カード表示の地 */
+  --r-card: #ffffff;
+  --r-bubble: #eef0f3; /* チャット表示の吹き出し */
+  --r-op-bubble: #ffe3c4;
+  --r-board: #efefef; /* 掲示板表示の地 */
+  --r-board-name: #1e7b1e;
   color-scheme: light;
 }
 
@@ -224,6 +236,7 @@ body.noscroll { overflow: hidden; }
   inset: 0;
   z-index: 25;
   background: var(--bg);
+  color: var(--fg);
   display: flex;
   flex-direction: column;
 }
@@ -267,7 +280,7 @@ body.noscroll { overflow: hidden; }
 }
 #reader-title {
   margin: 0 0 6px;
-  font-size: 19px;
+  font-size: calc(19px * var(--k));
   line-height: 1.4;
 }
 #reader-meta {
@@ -275,66 +288,66 @@ body.noscroll { overflow: hidden; }
   font-size: 12px;
   color: var(--fg-dim);
 }
-#reader-content {
-  font-size: 15.5px;
+.thread {
+  font-size: calc(15.5px * var(--k));
   line-height: 1.75;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
-#reader-content img {
+.thread img {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
   margin: 6px 0;
 }
-#reader-content video {
+.thread video {
   max-width: 100%;
   border-radius: 8px;
   margin: 6px 0;
   background: #000;
 }
-#reader-content a { color: var(--accent); }
-#reader-content blockquote {
+.thread a { color: var(--accent); }
+.thread blockquote {
   margin: 10px 0;
   padding: 8px 12px;
   border-left: 3px solid var(--accent);
   background: var(--bg2);
   border-radius: 0 8px 8px 0;
 }
-#reader-content table { max-width: 100%; overflow-x: auto; display: block; }
-#reader-content pre { white-space: pre-wrap; overflow-x: auto; }
+.thread table { max-width: 100%; overflow-x: auto; display: block; }
+.thread pre { white-space: pre-wrap; overflow-x: auto; }
 /* 記事の中の見出しは、記事タイトルより目立たない大きさにそろえる */
-#reader-content h1,
-#reader-content h2,
-#reader-content h3 { margin: 22px 0 8px; font-size: 17px; line-height: 1.5; }
-#reader-content h4,
-#reader-content h5,
-#reader-content h6 { margin: 18px 0 6px; font-size: 15.5px; line-height: 1.5; }
-#reader-content :is(h1, h2, h3, h4) a { color: inherit; text-decoration: none; }
+.thread h1,
+.thread h2,
+.thread h3 { margin: 22px 0 8px; font-size: calc(17px * var(--k)); line-height: 1.5; }
+.thread h4,
+.thread h5,
+.thread h6 { margin: 18px 0 6px; font-size: calc(15.5px * var(--k)); line-height: 1.5; }
+.thread :is(h1, h2, h3, h4) a { color: inherit; text-decoration: none; }
 /* まとめブログ定番のレス構造を元サイト風に表示。
    レスの見出し (番号・名前・日付・ID) は、ブログごとの書き方の違いを抽出のときに class="ph" にそろえてある */
-#reader-content .ph,
-#reader-content .t_h,
-#reader-content .res_h,
-#reader-content .name {
+.thread .ph,
+.thread .t_h,
+.thread .res_h,
+.thread .name {
   display: block;
   margin-top: 20px;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--k));
   line-height: 1.5;
-  color: #5c8022;
+  color: var(--r-head);
   font-weight: 600;
 }
-#reader-content .t_b,
-#reader-content .res_b,
-#reader-content .res_body,
-#reader-content dd {
+.thread .t_b,
+.thread .res_b,
+.thread .res_body,
+.thread dd {
   margin: 4px 0 4px 8px;
-  font-size: 16px;
+  font-size: calc(16px * var(--k));
   line-height: 1.7;
 }
-#reader-content dl { margin: 0; }
+.thread dl { margin: 0; }
 /* YouTube などの埋め込み動画 (サムネイルを押すと元のサイトで再生) */
-#reader-content .embed-video {
+.thread .embed-video {
   position: relative;
   display: block;
   margin: 10px 0;
@@ -344,7 +357,7 @@ body.noscroll { overflow: hidden; }
   color: #fff;
   text-decoration: none;
 }
-#reader-content .embed-video img {
+.thread .embed-video img {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -353,7 +366,7 @@ body.noscroll { overflow: hidden; }
   object-fit: cover;
   opacity: .85;
 }
-#reader-content .embed-video span {
+.thread .embed-video span {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -364,38 +377,38 @@ body.noscroll { overflow: hidden; }
   font-size: 14px;
   font-weight: 700;
 }
-#reader-content .embed-video img + span {
+.thread .embed-video img + span {
   position: absolute;
   left: 50%;
   top: 50%;
   margin: 0;
   transform: translate(-50%, -50%);
 }
-#reader-content .embed-video span::before {
+.thread .embed-video span::before {
   content: "";
   border-left: 11px solid currentColor;
   border-top: 7px solid transparent;
   border-bottom: 7px solid transparent;
 }
 /* サムネイルのない動画 (TikTok・Instagram・ニコニコ動画) は、押しやすいボタンの形にする */
-#reader-content .embed-plain {
+.thread .embed-plain {
   width: fit-content;
   background: var(--bg2);
   color: var(--fg);
   border: 1px solid var(--line);
   border-radius: 999px;
 }
-#reader-content .embed-plain span { margin: 0; background: none; }
+.thread .embed-plain span { margin: 0; background: none; }
 /* 返信が入れ子になっているスレ (流速VIP など) は、返信を少しずつ右へずらす */
-#reader-content .res { margin: 10px 0; }
-#reader-content .nest1,
-#reader-content .nest2,
-#reader-content .nest3,
-#reader-content .nest4 { padding-left: 10px; border-left: 2px solid var(--line); }
-#reader-content .nest1 { margin-left: 8px; }
-#reader-content .nest2 { margin-left: 20px; }
-#reader-content .nest3,
-#reader-content .nest4 { margin-left: 32px; }
+.thread .res { margin: 10px 0; }
+.thread .nest1,
+.thread .nest2,
+.thread .nest3,
+.thread .nest4 { padding-left: 10px; border-left: 2px solid var(--line); }
+.thread .nest1 { margin-left: 8px; }
+.thread .nest2 { margin-left: 20px; }
+.thread .nest3,
+.thread .nest4 { margin-left: 32px; }
 .reader-loading { color: var(--fg-dim); text-align: center; padding: 30px 0; }
 #reader-related { margin-top: 28px; }
 #reader-related h3 {
@@ -427,6 +440,192 @@ body.noscroll { overflow: hidden; }
   border-radius: 8px;
   background: var(--bg2);
 }
+
+/* ===== スレの見た目 (設定の「スレの見た目」で選ぶ。リーダーと設定の見本で共通) =====
+   thread.js が記事を「見出し .hd + 本文 .pb」の組 (.post) にそろえ、
+   リーダー (#reader) と見本 (#look-preview) に look-* の class を付ける */
+.look-fs-s { --k: .9; }
+.look-fs-l { --k: 1.15; }
+.look-fs-xl { --k: 1.3; }
+.look-th-sepia {
+  --bg: #f5eddc; --bg2: #ece2cc; --fg: #3d3020; --fg-dim: #85745b; --line: #e3d6bd; --accent: #b0600a;
+  --r-head: #56691f; --r-link: #8f4a06; --r-op: #8f4a06; --r-op-bg: #f6e5c9; --r-page: #ece2cc; --r-card: #fbf6ea;
+  --r-bubble: #ebdfc5; --r-op-bubble: #f1d2a6; --r-board: #efe6d2; --r-board-name: #3d7419;
+}
+.look-th-night {
+  --bg: #16171b; --bg2: #24252c; --fg: #e4e4ea; --fg-dim: #9a9aa8; --line: #2e2f36; --accent: #ff9a3c;
+  --r-head: #a3cf6a; --r-link: #ffa64d; --r-op: #ffb36b; --r-op-bg: #2a2016; --r-page: #0f1013; --r-card: #1f2026;
+  --r-bubble: #2a2b32; --r-op-bubble: #3d2c1d; --r-board: #1b1c20; --r-board-name: #7fd47f;
+  color-scheme: dark;
+}
+
+/* レスの組 (共通) */
+.thread .pb { font-size: calc(16px * var(--k)); line-height: 1.7; }
+.thread .pb > :is(.t_b, .res_b, .res_body, dd, .contents) { margin: 0; font-size: inherit; line-height: inherit; }
+.thread .pb > :first-child { margin-top: 0; }
+.thread .pb > :last-child { margin-bottom: 0; }
+.thread .hd { font-size: calc(13px * var(--k)); line-height: 1.55; }
+.thread .hd .meta { color: var(--fg-dim); font-weight: 400; }
+.thread .badge {
+  display: none;
+  margin-left: 2px;
+  padding: 0 7px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--r-op);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  vertical-align: 1px;
+}
+/* 名前欄を短くしたときは、日付と ID の代わりにスレ主の印を出す */
+.look-h-short .thread .hd .meta { display: none; }
+.look-h-short .thread .badge,
+.look-st-chat .thread .badge { display: inline-block; }
+
+/* シンプル (これまでの表示) */
+.look-st-simple .thread .post { margin-top: 20px; }
+.look-st-simple .thread .hd { color: var(--r-head); font-weight: 600; }
+.look-st-simple .thread .hd .no::after { content: ":"; }
+.look-st-simple .thread .hd .nm { color: var(--fg-dim); font-weight: 500; }
+.look-st-simple .thread .hd .meta { display: block; }
+.look-st-simple .thread .pb { margin: 4px 0 0 8px; }
+
+/* カード (レスごとに枠で区切る) */
+.look-st-card #reader-scroll { background: var(--r-page); }
+.look-st-card.look-preview { --pv-bg: var(--r-page); }
+.look-st-card .thread .post {
+  margin: 10px 0;
+  padding: 10px 14px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--r-card);
+}
+.look-st-card .thread .post.is-op { background: var(--r-op-bg); }
+.look-st-card .thread .hd { color: var(--fg-dim); }
+.look-st-card .thread .hd .no { color: var(--fg); font-weight: 800; }
+.look-st-card .thread .hd .nm { font-weight: 600; }
+.look-st-card .thread .pb { margin-top: 6px; }
+
+/* チャット (スレ主は右、ほかの人は左の吹き出し) */
+.look-st-chat .thread .post { display: flex; flex-direction: column; align-items: flex-start; margin: 12px 0; }
+.look-st-chat .thread .hd { margin: 0 8px 3px; color: var(--fg-dim); font-size: calc(11.5px * var(--k)); }
+.look-st-chat .thread .hd .no { font-weight: 700; }
+.look-st-chat .thread .pb {
+  max-width: 86%;
+  padding: 8px 13px;
+  border-radius: 18px 18px 18px 6px;
+  background: var(--r-bubble);
+}
+.look-st-chat .thread .pb:empty { display: none; }
+.look-st-chat .thread .is-op { align-items: flex-end; }
+.look-st-chat .thread .is-op .hd { text-align: right; }
+.look-st-chat .thread .is-op .pb { border-radius: 18px 18px 6px 18px; background: var(--r-op-bubble); }
+.look-st-chat .thread .pb img,
+.look-st-chat .thread .pb video { border-radius: 12px; }
+
+/* 掲示板 (5ちゃんねる風) */
+.look-st-board #reader-scroll { background: var(--r-board); }
+.look-st-board.look-preview { --pv-bg: var(--r-board); }
+.look-st-board .thread .post { margin-top: 16px; }
+.look-st-board .thread .hd { color: var(--fg); font-size: calc(13.5px * var(--k)); }
+.look-st-board .thread .hd .no::after { content: " ："; }
+.look-st-board .thread .hd .nm { color: var(--r-board-name); font-weight: 700; }
+.look-st-board .thread .hd .nm:has(+ .meta)::after { content: "："; color: var(--fg); font-weight: 400; }
+.look-h-short.look-st-board .thread .hd .nm::after { content: none; }
+.look-st-board .thread .hd .meta { color: var(--fg); }
+.look-st-board .thread .pb { margin: 6px 0 0 1.4em; font-size: calc(15px * var(--k)); line-height: 1.6; }
+
+/* 文字の色: 黒にそろえる・スレ主だけ色 (元サイトが付けた色・太字・大きさを外す) */
+:is(.look-c-plain, .look-c-op) .thread .post :is([style], font, b, strong):not(.aa-fit) {
+  color: inherit !important;
+  background: none !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  font-style: inherit !important;
+  line-height: inherit !important;
+}
+.look-c-op .thread .post.is-op .pb { color: var(--r-op); font-weight: 600; }
+
+/* 画像を小さく (押すと大きく) */
+.look-i-small .thread img:not(.embed-video img) {
+  width: auto;
+  max-width: min(60%, 260px);
+  max-height: 140px;
+  cursor: zoom-in;
+}
+.look-i-small .thread img.zoom:not(.embed-video img) { max-width: 100%; max-height: none; cursor: zoom-out; }
+
+/* >>5 などのアンカー */
+.thread .anc {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--r-link);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.anc-pop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(10, 10, 16, .38);
+}
+.anc-sheet {
+  width: 100%;
+  max-width: 640px;
+  max-height: 64vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px calc(18px + env(safe-area-inset-bottom));
+  border-radius: 20px 20px 0 0;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, .22);
+}
+.look-st-card .anc-sheet { background: var(--r-page); }
+.look-st-board .anc-sheet { background: var(--r-board); }
+.anc-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 6px;
+  background: inherit;
+}
+.anc-title { font-size: 14px; font-weight: 800; color: var(--fg-dim); }
+.anc-close {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 16px;
+  background: var(--bg2);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.anc-body > .post:first-child { margin-top: 4px; }
+.anc-none { margin: 8px 0; color: var(--fg-dim); font-size: 14px; }
+
+/* AA (アスキーアート): 折り返さず、AA 用の字体があれば使う。幅は thread.js が画面に合わせて縮める */
+.thread .pb.aa {
+  font-family: "MS PGothic", "ＭＳ Ｐゴシック", "IPAMonaPGothic", "Mona", "Textar", "Saitamaar", "monapo", sans-serif;
+  line-height: 1.15;
+  overflow-x: auto;
+}
+.look-st-chat .thread .pb.aa { max-width: 100%; }
+.thread .aa-fit { display: inline-block; white-space: nowrap; letter-spacing: 0; }
+/* (AA の中の文字の大きさ・行間・余白は、元サイトの指定より、画面に合わせた大きさを優先する) */
+.thread .aa-fit * { margin: 0 !important; font-size: inherit !important; line-height: inherit !important; }
 
 /* ===== 下のタブ (ワールド / まとめ / 設定) ===== */
 #tabbar {
@@ -1477,6 +1676,60 @@ html[data-view="settings"] body { background: var(--surface); }
   resize: vertical;
 }
 #ng-words:focus { outline: none; background: #fff; box-shadow: inset 0 0 0 2px var(--accent-ink); }
+
+/* スレの見た目 (見本は選択肢の上に貼り付けて、選ぶたびに変わるのを見られるようにする) */
+#look-card { overflow: visible; }
+.look-preview {
+  position: sticky;
+  top: calc(8px + env(safe-area-inset-top));
+  z-index: 2;
+  max-height: 290px;
+  margin-top: 12px;
+  overflow: hidden;
+  padding: 2px 14px 16px;
+  border-radius: 14px;
+  --pv-bg: var(--bg);
+  background: var(--pv-bg);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-md);
+  pointer-events: none;
+}
+/* 見本の下の端は、地の色へ溶かして「続きがある」ことを示す */
+.look-preview::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
+  height: 44px;
+  border-radius: 0 0 13px 13px;
+  background: linear-gradient(rgb(from var(--pv-bg) r g b / 0), var(--pv-bg));
+}
+.look-opt { min-width: 0; margin: 16px 0 0; padding: 0; border: 0; }
+.look-opt legend { margin-bottom: 7px; padding: 0; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(68px, 1fr)); gap: 6px; }
+.seg label { position: relative; display: block; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 46px;
+  padding: 6px 4px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  transition: box-shadow .15s, background-color .15s;
+}
+.seg small { display: block; margin-top: 1px; font-size: 10.5px; font-weight: 500; color: var(--fg-dim); }
+.seg label:active span { background: var(--line); }
+.seg input:checked + span { background: var(--card); box-shadow: inset 0 0 0 2px var(--fg); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .seg span { transition: none; } }
 
 /* 地図の大きさ (選んだときの画面の見本付きの2択) */
 .size-pick {

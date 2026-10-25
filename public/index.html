@@ -281,6 +281,60 @@
           <input type="checkbox" id="opt-hide-read" class="switch" role="switch">
         </label>
       </div>
+      <!-- スレの見た目。見本 (look-preview) の中身と見た目の切り替えは thread.js が行う -->
+      <div class="s-card s-pad" id="look-card">
+        <h3 class="s-title">スレの見た目</h3>
+        <p class="s-note">アプリ内で開いたまとめ記事の見た目です。選ぶと下の見本がすぐに変わります</p>
+        <div id="look-preview" class="look-preview" aria-hidden="true"><div class="thread"></div></div>
+        <fieldset class="look-opt">
+          <legend>レスの見た目</legend>
+          <div class="seg">
+            <label><input type="radio" name="look-style" value="simple"><span>シンプル<small>これまでの表示</small></span></label>
+            <label><input type="radio" name="look-style" value="card"><span>カード<small>枠で区切る</small></span></label>
+            <label><input type="radio" name="look-style" value="chat"><span>チャット<small>吹き出し</small></span></label>
+            <label><input type="radio" name="look-style" value="board"><span>掲示板<small>5ch風</small></span></label>
+          </div>
+        </fieldset>
+        <fieldset class="look-opt">
+          <legend>文字の大きさ</legend>
+          <div class="seg">
+            <label><input type="radio" name="look-size" value="s"><span>小</span></label>
+            <label><input type="radio" name="look-size" value="m"><span>標準</span></label>
+            <label><input type="radio" name="look-size" value="l"><span>大</span></label>
+            <label><input type="radio" name="look-size" value="xl"><span>特大</span></label>
+          </div>
+        </fieldset>
+        <fieldset class="look-opt">
+          <legend>文字の色</legend>
+          <div class="seg">
+            <label><input type="radio" name="look-color" value="orig"><span>そのまま<small>元サイトの色</small></span></label>
+            <label><input type="radio" name="look-color" value="plain"><span>そろえる<small>色と太字を外す</small></span></label>
+            <label><input type="radio" name="look-color" value="op"><span>スレ主だけ<small>色を付ける</small></span></label>
+          </div>
+        </fieldset>
+        <fieldset class="look-opt">
+          <legend>背景</legend>
+          <div class="seg">
+            <label><input type="radio" name="look-theme" value="white"><span>白</span></label>
+            <label><input type="radio" name="look-theme" value="sepia"><span>セピア<small>目にやさしい</small></span></label>
+            <label><input type="radio" name="look-theme" value="night"><span>夜<small>暗い背景</small></span></label>
+          </div>
+        </fieldset>
+        <fieldset class="look-opt">
+          <legend>名前・日付・ID</legend>
+          <div class="seg">
+            <label><input type="radio" name="look-head" value="full"><span>全部出す</span></label>
+            <label><input type="radio" name="look-head" value="short"><span>短く<small>番号と名前だけ</small></span></label>
+          </div>
+        </fieldset>
+        <fieldset class="look-opt">
+          <legend>画像</legend>
+          <div class="seg">
+            <label><input type="radio" name="look-img" value="big"><span>大きく</span></label>
+            <label><input type="radio" name="look-img" value="small"><span>小さく<small>押すと大きく</small></span></label>
+          </div>
+        </fieldset>
+      </div>
       <div class="s-card s-pad">
         <label class="s-title" for="ng-words">NGワード</label>
         <p class="s-note">含まれる記事を表示しません。カンマか改行で区切ります</p>
@@ -337,11 +391,19 @@
   <div id="reader-scroll">
     <h2 id="reader-title"></h2>
     <p id="reader-meta"></p>
-    <div id="reader-content"></div>
+    <div id="reader-content" class="thread"></div>
     <div id="reader-related"></div>
+  </div>
+  <!-- >>5 などのアンカーを押したときに、そのレスを下から出して見せる -->
+  <div id="anc-pop" class="anc-pop" hidden>
+    <div class="anc-sheet" role="dialog" aria-modal="true" aria-label="レスの表示">
+      <div class="anc-head"><b class="anc-title"></b><button type="button" class="anc-close">閉じる</button></div>
+      <div class="anc-body thread"></div>
+    </div>
   </div>
 </div>
 
+<script src="./thread.js"></script>
 <script src="./app.js"></script>
 <script src="./world.js"></script>
 </body>
