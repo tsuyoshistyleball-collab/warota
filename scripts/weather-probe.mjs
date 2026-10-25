@@ -130,3 +130,50 @@ export async function probe3() {
     }
   }
 }
+
+// 2026年からの新しい警報・注意報のデータ (warning/data/r8/) の形を調べる
+export async function probe4() {
+  const base = "https://www.jma.go.jp/bosai/warning/data/r8/";
+  await head(base + "130000.json", 4000);
+  await head(base + "map_time.json", 600);
+  const mapText = await head(base + "map.json", 1500);
+  await head(base + "panel.json", 800);
+  // 全国の地域ごとのデータで使われているキーとコードを数える
+  const area = await (await fetch("https://www.jma.go.jp/bosai/common/const/area.json")).json();
+  const keys = new Map();
+  const samples = [];
+  const walk = (v, path) => {
+    if (Array.isArray(v)) v.forEach((x) => walk(x, path + "[]"));
+    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(x, `${path}.${k}`);
+    else {
+      const k = `${path}=${typeof v === "string" && v.length < 24 ? v : typeof v}`;
+      keys.set(k, (keys.get(k) ?? 0) + 1);
+    }
+  };
+  let dates = [];
+  for (const office of Object.keys(area.offices)) {
+    try {
+      const j = await (await fetch(base + office + ".json")).json();
+      walk(j, "");
+      dates.push(j.reportDatetime ?? j[0]?.reportDatetime ?? "?");
+      if (samples.length < 1 && JSON.stringify(j).includes("level3")) samples.push(office);
+    } catch (err) {
+      console.log(`r8 ${office} NG ${err.message}`);
+    }
+  }
+  dates.sort();
+  console.log(`\nreport dates: oldest ${dates[0]} newest ${dates[dates.length - 1]}`);
+  const rows = [...keys].filter(([k]) => !/\.code=\d{7}$|\.code=\d{6}$/.test(k)).sort((a, b) => a[0].localeCompare(b[0]));
+  console.log(`keys (${rows.length}):`);
+  for (const [k, n] of rows.slice(0, 400)) console.log(`  ${n}\t${k}`);
+  if (samples[0]) await head(base + samples[0] + ".json", 3000);
+  // ページのスクリプトから、警報の種類の名前の表を探す
+  const html = await (await fetch("https://www.jma.go.jp/bosai/warning/")).text();
+  for (const word of ["level30", "level40", "注意報", "警報"]) {
+    let at = html.indexOf(word);
+    for (let i = 0; at >= 0 && i < 3; i++) {
+      console.log(`--- [${word}] ${html.slice(Math.max(0, at - 300), at + 500).replace(/\s+/g, " ")}`);
+      at = html.indexOf(word, at + 1);
+    }
+  }
+}
