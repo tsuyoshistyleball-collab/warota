@@ -280,3 +280,41 @@ export async function probe8() {
     console.log(`gsi ${lat},${lon}: ${JSON.stringify(r)}`);
   }
 }
+
+// 市区町村をさらに分けた地域 (横浜市北部・南部など) の一覧と、その境目の地図データがどこにあるか
+export async function probe9() {
+  const area = await (await fetch("https://www.jma.go.jp/bosai/common/const/area.json")).json();
+  const split = {};
+  for (const [c, v] of Object.entries(area.class20s)) if (!c.endsWith("00")) (split[c.slice(0, 5)] ??= []).push(`${c}:${v.name}`);
+  const groups = Object.entries(split);
+  console.log(`split municipalities: ${groups.length}`);
+  for (const [m, list] of groups) console.log(`  ${m}: ${list.join(" ")}`);
+  console.log(`1410011: ${JSON.stringify(area.class20s["1410011"])}`);
+  console.log(`class15 of 1410011: ${JSON.stringify(area.class15s[area.class20s["1410011"]?.parent])}`);
+
+  // 気象庁の警報のページが読み込むファイル
+  const page = await (await fetch("https://www.jma.go.jp/bosai/warning/")).text();
+  const srcs = [...page.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => new URL(m[1], "https://www.jma.go.jp/bosai/warning/").href);
+  console.log(`scripts: ${srcs.join(" ")}`);
+  const found = new Set();
+  for (const s of srcs) {
+    const js = await (await fetch(s)).text();
+    for (const m of js.matchAll(/["'`]([^"'`\s]*(?:const|geojson|topojson|map)[^"'`\s]*\.(?:json|geojson|pbf)[^"'`\s]*)["'`]/g)) found.add(m[1]);
+  }
+  console.log(`json paths: ${[...found].slice(0, 60).join(" ")}`);
+
+  for (const u of [
+    "https://www.jma.go.jp/bosai/common/const/geojson/class20s.json",
+    "https://www.jma.go.jp/bosai/common/const/topojson/class20s.json",
+    "https://www.jma.go.jp/bosai/common/const/class20s.json",
+    "https://maps.gsi.go.jp/js/muni.js",
+  ]) {
+    try {
+      const res = await fetch(u, { headers: { Origin: ORIGIN } });
+      const t = await res.text();
+      console.log(`${u}: ${res.status} acao=${res.headers.get("access-control-allow-origin")} size=${t.length} head=${JSON.stringify(t.slice(0, 160))}`);
+    } catch (err) {
+      console.log(`${u}: NG ${err.message}`);
+    }
+  }
+}
