@@ -34,6 +34,13 @@ if (url.startsWith("audit")) {
   process.exit(0);
 }
 
+// "weather-probe" なら、天気のページで使うデータの取り方 (ブラウザから読めるか・データの形) を確かめる
+if (url === "weather-probe") {
+  const { probe } = await import("./weather-probe.mjs");
+  await probe();
+  process.exit(0);
+}
+
 // "reader-samples 1" なら、公開中の記事本文をサイトごとに1件ずつ、見本としてログに出す
 if (url.startsWith("reader-samples")) {
   const { samples } = await import("./audit-articles.mjs");
