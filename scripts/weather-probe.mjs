@@ -237,3 +237,25 @@ export async function probe6() {
     }
   }
 }
+
+// 新しい警報・注意報の種別コードの表を、解説ページから探す
+export async function probe7() {
+  for (const url of ["https://dmdata.jp/docs/topic/2026weather/", "https://dmdata.jp/docs/reference/conversion/json/schema/weather-warning/"]) {
+    let html = "";
+    try {
+      html = await (await fetch(url)).text();
+    } catch (err) {
+      console.log(`=== ${url} NG ${err.message}`);
+      continue;
+    }
+    const text = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/g, "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
+    console.log(`\n=== ${url} (${text.length})`);
+    for (const word of ["コード", "危険警報", "VPWW"]) {
+      let at = text.indexOf(word);
+      for (let i = 0; at >= 0 && i < 6; i++) {
+        console.log(`--- [${word}] ${text.slice(Math.max(0, at - 200), at + 700)}`);
+        at = text.indexOf(word, at + 700);
+      }
+    }
+  }
+}
