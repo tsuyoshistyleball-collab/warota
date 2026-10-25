@@ -224,3 +224,16 @@ export async function probe5() {
     for (const m of hits) console.log(`--- [${re.source}] ${html.slice(Math.max(0, m.index - 300), m.index + 600).replace(/\s+/g, " ")}`);
   }
 }
+
+// 気象庁のページのスクリプトは日本語を \\uXXXX の形で書いているので、元に戻してから警報の名前の表を探す
+export async function probe6() {
+  const html = await (await fetch("https://www.jma.go.jp/bosai/warning/")).text();
+  const text = html.replace(/\\u([0-9a-fA-F]{4})/g, (m, h) => String.fromCharCode(parseInt(h, 16)));
+  for (const word of ["土砂災害危険警報", "大雨危険警報", "高潮危険警報", "土砂災害注意報", "大雨特別警報", "濃霧注意報"]) {
+    let at = text.indexOf(word);
+    for (let i = 0; at >= 0 && i < 2; i++) {
+      console.log(`--- [${word}] ${text.slice(Math.max(0, at - 700), at + 900).replace(/\s+/g, " ")}`);
+      at = text.indexOf(word, at + 1);
+    }
+  }
+}
