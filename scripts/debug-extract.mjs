@@ -37,7 +37,7 @@ if (url.startsWith("audit")) {
 // "weather-probe" なら、天気のページで使うデータの取り方 (ブラウザから読めるか・データの形) を確かめる
 if (url.startsWith("weather-probe")) {
   const mod = await import("./weather-probe.mjs");
-  await { "weather-probe": mod.probe, "weather-probe2": mod.probe2, "weather-probe3": mod.probe3, "weather-probe4": mod.probe4, "weather-probe5": mod.probe5, "weather-probe6": mod.probe6, "weather-probe7": mod.probe7 }[url]?.();
+  await { "weather-probe": mod.probe, "weather-probe2": mod.probe2, "weather-probe3": mod.probe3, "weather-probe4": mod.probe4, "weather-probe5": mod.probe5, "weather-probe6": mod.probe6, "weather-probe7": mod.probe7, "weather-probe8": mod.probe8 }[url]?.();
   process.exit(0);
 }
 

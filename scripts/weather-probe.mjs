@@ -259,3 +259,24 @@ export async function probe7() {
     }
   }
 }
+
+// 政令指定都市の区と、警報・注意報の地域コードの対応を確かめる
+export async function probe8() {
+  const area = await (await fetch("https://www.jma.go.jp/bosai/common/const/area.json")).json();
+  for (const pre of ["0110", "1410", "1413", "2310", "2710", "4013", "1310", "1110", "2610"]) {
+    const hits = Object.entries(area.class20s).filter(([c]) => c.startsWith(pre)).map(([c, v]) => `${c}:${v.name}`);
+    console.log(`class20 ${pre}*: ${hits.join(" ")}`);
+  }
+  for (const office of ["140000", "016000", "270000"]) {
+    const list = await (await fetch(`https://www.jma.go.jp/bosai/warning/data/r8/${office}.json`)).json();
+    const codes = new Set();
+    for (const r of list) for (const it of r.warning?.class20Items ?? []) codes.add(it.areaCode);
+    const odd = [...codes].filter((c) => !area.class20s[c]);
+    console.log(`r8 ${office}: ${codes.size} areas, not in area.json: ${odd.join(" ") || "none"}; sample: ${[...codes].slice(0, 12).join(" ")}`);
+  }
+  // 国土地理院の逆ジオコーダーが、横浜市中区・大阪市北区・札幌市中央区で返すコード
+  for (const [lat, lon] of [[35.4437, 139.638], [34.7055, 135.4983], [43.0611, 141.3564]]) {
+    const r = await (await fetch(`https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lon}`)).json();
+    console.log(`gsi ${lat},${lon}: ${JSON.stringify(r)}`);
+  }
+}
