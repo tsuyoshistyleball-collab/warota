@@ -364,3 +364,53 @@ export async function probe10() {
     }
   }
 }
+
+// 雨雲レーダー: 気象庁の「雨雲の動き」(降水ナウキャスト) の時刻の一覧と地図タイル、国土地理院の地図タイル
+export async function probe11() {
+  const tile = (lat, lon, z) => {
+    const n = 2 ** z;
+    const s = Math.sin((lat * Math.PI) / 180);
+    return [Math.floor(((lon + 180) / 360) * n), Math.floor((0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n)];
+  };
+  const base = "https://www.jma.go.jp/bosai/jmatile/data/nowc/";
+  const lists = {};
+  for (const n of ["N1", "N2", "N3"]) {
+    try {
+      const res = await fetch(`${base}targetTimes_${n}.json`, { headers: { Origin: ORIGIN } });
+      const t = await res.text();
+      console.log(`targetTimes_${n}: ${res.status} acao=${res.headers.get("access-control-allow-origin")} cache=${res.headers.get("cache-control")} size=${t.length}`);
+      const j = JSON.parse(t);
+      lists[n] = j;
+      console.log(`  n=${j.length} first=${JSON.stringify(j[0])} last=${JSON.stringify(j.at(-1))}`);
+      console.log(`  elements: ${[...new Set(j.flatMap((x) => x.elements ?? []))].join(",")}`);
+    } catch (err) {
+      console.log(`targetTimes_${n}: NG ${err.message}`);
+    }
+  }
+  const head = async (u) => {
+    try {
+      const r = await fetch(u, { headers: { Origin: ORIGIN } });
+      const b = await r.arrayBuffer();
+      return `${r.status} ${r.headers.get("content-type")} ${b.byteLength}B acao=${r.headers.get("access-control-allow-origin")} cache=${r.headers.get("cache-control")}`;
+    } catch (err) {
+      return `NG ${err.message}`;
+    }
+  };
+  const now = lists.N1?.[0];
+  const fut = lists.N2?.at(-1);
+  for (const [label, t] of [["now", now], ["future", fut]]) {
+    if (!t) continue;
+    for (let z = 3; z <= 13; z++) {
+      const [x, y] = tile(35.68, 139.76, z);
+      console.log(`${label} hrpns z${z}: ${await head(`${base}${t.basetime}/none/${t.validtime}/surf/hrpns/${z}/${x}/${y}.png`)}`);
+    }
+  }
+  for (const z of [3, 4, 5, 8, 10, 12, 14]) {
+    const [x, y] = tile(35.68, 139.76, z);
+    console.log(`gsi pale z${z}: ${await head(`https://cyberjapandata.gsi.go.jp/xyz/pale/${z}/${x}/${y}.png`)}`);
+  }
+  // 気象庁の地図ページが使っている地図タイル (あれば)
+  const page = await (await fetch("https://www.jma.go.jp/bosai/nowc/")).text();
+  console.log(`nowc page scripts: ${[...page.matchAll(/<script[^>]+src="([^"]+)"/g)].map((m) => m[1]).join(" ")}`);
+  for (const m of [...page.matchAll(/(?:tile|jmatile|xyz)[^"'\s<>]{0,120}/g)].slice(0, 20)) console.log(`  ${m[0]}`);
+}
