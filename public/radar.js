@@ -1,7 +1,9 @@
 "use strict";
 
 // 雨雲レーダー: 気象庁の「雨雲の動き」(高解像度降水ナウキャスト) を国土地理院の地図に重ねて、全画面で見せる。
-// 1時間前から1時間後まで5分ごと。指で動かす・2本指で拡大縮小・再生ができ、戻る操作で閉じる
+// 1時間前から1時間後まで5分ごと。指で動かす・2本指で拡大縮小・再生ができ、戻る操作で閉じる。
+// 左上のアナログ時計は、表示中の雨雲の時刻を指す。
+// すぐに見せるため、天気のタブを開いたときに時刻の一覧と現在地のまわりの画像を先に読んでおく (warm)
 (() => {
   const TILE = 256; // 地図の画像1枚の大きさ (px)
   const MIN_Z = 5; // 倍率 (大きいほど拡大。1つ上がると2倍)
@@ -37,6 +39,8 @@
   // 気象庁の時刻 "20261026053000" (世界時) → Date
   const timeOf = (s) => new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(8, 10), +s.slice(10, 12)));
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const FRESH_MS = 60 * 1000; // これより新しい時刻の一覧は取り直さない
+  const STALE_MS = 5 * 60 * 1000; // これより古い一覧は「今」として見せない (気象庁は5分ごとに新しくなる)
 
   let root = null; // 全画面の表示 (最初に開いたときに作る)
   const els = {};
@@ -45,6 +49,10 @@
   let frames = []; // 時刻の一覧 [{ basetime, validtime, time }] (古い順)
   let nowFrame = 0; // 一番新しい実況 (今)
   let frame = 0; // 表示中の時刻
+  let framesAt = 0; // 時刻の一覧を取ったとき
+  let framesReq = null; // 取りに行っている途中の一覧
+  let warmedAt = 0;
+  let openToken = 0; // 開くたび・閉じるたびに増やす (閉じたあとの先読みを止める)
   let reloadTimer = 0;
   let playing = false;
   let playToken = 0;
@@ -75,6 +83,15 @@
           <p class="rd-time" aria-live="polite">読み込み中…</p>
         </div>
       </header>
+      <div class="rd-clock off" aria-hidden="true">
+        <svg viewBox="0 0 100 100">
+          <circle class="rd-clock-face" cx="50" cy="50" r="48"/>
+          ${Array.from({ length: 12 }, (_, i) => `<line class="rd-clock-tick${i % 3 ? "" : " big"}" x1="50" y1="${i % 3 ? 9 : 7}" x2="50" y2="15" transform="rotate(${i * 30} 50 50)"/>`).join("")}
+          <line class="rd-clock-h" x1="50" y1="50" x2="50" y2="28"/>
+          <line class="rd-clock-m" x1="50" y1="50" x2="50" y2="14"/>
+          <circle class="rd-clock-c" cx="50" cy="50" r="4.5"/>
+        </svg>
+      </div>
       <div class="rd-zoom">
         <button type="button" class="rd-btn" data-zoom="1" aria-label="拡大">${ICON.plus}</button>
         <button type="button" class="rd-btn" data-zoom="-1" aria-label="縮小">${ICON.minus}</button>
@@ -102,7 +119,7 @@
     document.body.append(root);
     for (const [k, sel] of Object.entries({
       map: ".rd-map", pane: ".rd-pane", me: ".rd-me", time: ".rd-time", slider: ".rd-slider", play: ".rd-play",
-      msg: ".rd-msg", now: ".rd-tick-now", close: ".rd-close",
+      msg: ".rd-msg", now: ".rd-tick-now", close: ".rd-close", clock: ".rd-clock", hand: ".rd-clock-h", minute: ".rd-clock-m",
     })) {
       els[k] = root.querySelector(sel);
     }
@@ -158,10 +175,16 @@
     root.hidden = false;
     document.body.classList.add("noscroll");
     history.pushState({ radar: true }, "");
+    const token = ++openToken;
     home();
+    frame = nowFrame;
+    // 先に読んであった一覧が新しければ、すぐに「今」の雨雲を出す (古ければ取り直してから)
+    if (frames.length && Date.now() - framesAt < STALE_MS) applyFrames(null);
     draw();
     els.close.focus({ preventScroll: true });
-    loadFrames();
+    loadFrames().then(() => {
+      if (token === openToken) preloadAll(token);
+    });
     reloadTimer = setInterval(() => loadFrames(), 5 * 60 * 1000); // 開いている間も新しい雨雲に入れ替える
   }
   function close() {
@@ -169,14 +192,14 @@
     clearInterval(reloadTimer);
     root.hidden = true;
     document.body.classList.remove("noscroll");
+    openToken++;
     preloaded.clear();
     // 次に開いたときに古い雨雲や時刻が見えないように、消しておく (開くたびに「今」から)
-    frames = [];
-    frame = nowFrame = 0;
     layers.rain.el.textContent = "";
     layers.rain.imgs.clear();
     els.time.textContent = "読み込み中…";
     els.slider.max = "0";
+    els.clock.classList.add("off");
     returnFocus?.focus?.({ preventScroll: true }); // ページを動かさずに、開いたボタンへ戻す
   }
   window.addEventListener("popstate", () => {
@@ -198,11 +221,13 @@
   }
 
   // ---- 時刻の一覧 ----
-  async function loadFrames() {
-    try {
+  // 気象庁から取る (1分以内に取ったものはそのまま使い、取りに行っている途中なら同じものを待つ)
+  function fetchFrames() {
+    if (frames.length && Date.now() - framesAt < FRESH_MS) return Promise.resolve();
+    framesReq ??= (async () => {
       const [past, ahead] = await Promise.all(
         ["N1", "N2"].map(async (n) => {
-          const res = await fetch(`${JMA}targetTimes_${n}.json`, { cache: "no-cache" });
+          const res = await fetch(`${JMA}targetTimes_${n}.json`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return (await res.json()).filter((t) => t.elements?.includes("hrpns"));
         }),
@@ -214,20 +239,34 @@
       // 予報は、一番新しい実況から先の1時間 (同じ時刻に作られたもの)
       const base = ahead.reduce((m, t) => (t.basetime > m ? t.basetime : m), "");
       const next = ahead.filter((t) => t.basetime === base && t.validtime > latest.validtime).sort(byTime).slice(0, 12);
-      const keep = frames[frame] && frame !== nowFrame ? frames[frame].validtime : null;
       frames = [...seen, ...next].map((t) => ({ basetime: t.basetime, validtime: t.validtime, time: timeOf(t.validtime) }));
       nowFrame = seen.length - 1;
-      els.slider.max = String(frames.length - 1);
-      els.now.style.left = `${((nowFrame / Math.max(1, frames.length - 1)) * 100).toFixed(1)}%`;
-      els.msg.hidden = true;
-      // 見ていた時刻がまだ一覧にあればそのまま、なければ「今」
-      const again = keep ? frames.findIndex((f) => f.validtime === keep) : -1;
-      setFrame(again >= 0 ? again : nowFrame);
+      framesAt = Date.now();
+    })().finally(() => {
+      framesReq = null;
+    });
+    return framesReq;
+  }
+  // 開いている画面に一覧を反映する
+  async function loadFrames() {
+    const keep = frames[frame] && frame !== nowFrame ? frames[frame].validtime : null;
+    try {
+      await fetchFrames();
     } catch {
       els.msg.textContent = "雨雲の情報を取得できませんでした。通信状態を確かめて、開き直してください。";
       els.msg.hidden = false;
       if (!frames.length) els.time.textContent = "—";
+      return;
     }
+    if (!root.hidden) applyFrames(keep);
+  }
+  function applyFrames(keep) {
+    els.slider.max = String(frames.length - 1);
+    els.now.style.left = `${((nowFrame / Math.max(1, frames.length - 1)) * 100).toFixed(1)}%`;
+    els.msg.hidden = true;
+    // 見ていた時刻がまだ一覧にあればそのまま、なければ「今」
+    const again = keep ? frames.findIndex((f) => f.validtime === keep) : -1;
+    setFrame(again >= 0 ? again : nowFrame);
   }
 
   function setFrame(i) {
@@ -240,7 +279,27 @@
     const rel = mins === 0 ? "今" : mins < 0 ? `${-mins}分前` : `${mins}分後`;
     els.time.innerHTML = `<b>${hhmm(f.time)}</b> <span class="rd-kind${mins > 0 ? " ahead" : ""}">${kind}</span> ${rel}`;
     els.slider.setAttribute("aria-valuetext", `${hhmm(f.time)} ${kind} ${rel}`);
+    setClock(mins, mins > 0);
     drawRain();
+  }
+
+  // アナログ時計: 「今」の時刻から mins 分ずらした時刻を指す。針は5分ずつなめらかに回し、
+  // 大きく飛ぶとき (最後から最初へ戻るなど) はすぐに切り替える。予報の間は長針をオレンジに
+  let clockMins = null;
+  function setClock(mins, ahead) {
+    const now = frames[nowFrame].time;
+    const m = now.getHours() * 60 + now.getMinutes() + mins; // 0時からの分 (日をまたいでも続けて数える)
+    const jump = clockMins === null || Math.abs(m - clockMins) > 20;
+    clockMins = m;
+    els.clock.classList.toggle("jump", jump);
+    els.clock.classList.toggle("ahead", ahead);
+    els.clock.classList.remove("off");
+    els.hand.style.transform = `rotate(${m * 0.5}deg)`;
+    els.minute.style.transform = `rotate(${m * 6}deg)`;
+    if (jump) {
+      void els.clock.offsetWidth; // 動かさずに切り替えてから、次からはなめらかに
+      els.clock.classList.remove("jump");
+    }
   }
 
   // ---- 再生 ----
@@ -261,34 +320,56 @@
     await wait(next === frames.length - 1 ? 1500 : next === nowFrame ? 1000 : 450);
     if (token === playToken) step(token);
   }
+  // 画像を先に読んでおく (読み終わるか失敗したら終わる)。地図の画像はサービスワーカーにも残す (CORS で読む)
+  function fetchImage(url, cors = false) {
+    let im = preloaded.get(url);
+    if (!im) {
+      im = new Image();
+      if (cors) im.crossOrigin = "anonymous";
+      im.src = url;
+      preloaded.set(url, im);
+    }
+    return im.complete ? null : new Promise((r) => {
+      im.addEventListener("load", r, { once: true });
+      im.addEventListener("error", r, { once: true });
+    });
+  }
   function preload(i) {
     const f = frames[i];
     const z = rainZoom(view.z);
-    return Promise.all(
-      tilesInView(z).map(({ tx, ty }) => {
-        const url = rainUrl(f, z, tx, ty);
-        let im = preloaded.get(url);
-        if (!im) {
-          im = new Image();
-          im.src = url;
-          preloaded.set(url, im);
-        }
-        return im.complete ? null : new Promise((r) => {
-          im.addEventListener("load", r, { once: true });
-          im.addEventListener("error", r, { once: true });
-        });
-      }),
-    );
+    return Promise.all(tilesInView(z).map(({ tx, ty }) => fetchImage(rainUrl(f, z, tx, ty))));
+  }
+  // 開いたあと、再生がつかえないように残りの時刻も順に読んでおく (「今」の次から)
+  async function preloadAll(token) {
+    const order = [...frames.keys()].slice(nowFrame + 1).concat([...frames.keys()].slice(0, nowFrame));
+    for (const i of order) {
+      if (token !== openToken) return;
+      await preload(i);
+    }
+  }
+
+  // 天気のタブを開いたときに呼ぶ: 時刻の一覧と、現在地のまわりの地図・「今」の雨雲を先に読んでおく
+  function warm(lat, lon) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Date.now() - warmedAt < FRESH_MS) return;
+    warmedAt = Date.now();
+    const at = { z: HOME_Z, x: 0, y: 0 };
+    [at.x, at.y] = toPx(lat, lon, HOME_Z);
+    const size = [innerWidth, innerHeight]; // レーダーは全画面
+    for (const { tx, ty } of tilesInView(HOME_Z, at, ...size)) fetchImage(baseUrl(HOME_Z, tx, ty), true);
+    fetchFrames()
+      .then(() => {
+        const z = rainZoom(HOME_Z);
+        for (const { tx, ty } of tilesInView(z, at, ...size)) fetchImage(rainUrl(frames[nowFrame], z, tx, ty));
+      })
+      .catch(() => {});
   }
 
   // ---- 地図を描く ----
   // 倍率 lz の画像のうち、画面に入るもの (今の倍率で出す大きさ size と、画面の左上からの位置)
-  function tilesInView(lz) {
-    const w = els.map.clientWidth;
-    const h = els.map.clientHeight;
-    const size = TILE * 2 ** (view.z - lz);
-    const left = view.x - w / 2;
-    const top = view.y - h / 2;
+  function tilesInView(lz, v = view, w = els.map.clientWidth, h = els.map.clientHeight) {
+    const size = TILE * 2 ** (v.z - lz);
+    const left = v.x - w / 2;
+    const top = v.y - h / 2;
     const last = 2 ** lz - 1;
     const out = [];
     for (let ty = Math.max(0, Math.floor(top / size)); ty <= Math.min(last, Math.floor((top + h) / size)); ty++) {
@@ -298,7 +379,7 @@
     }
     return out;
   }
-  function place(layer, lz, url) {
+  function place(layer, lz, url, cors = false) {
     const want = new Set();
     for (const t of tilesInView(lz)) {
       const key = `${lz}/${t.tx}/${t.ty}`;
@@ -309,6 +390,7 @@
         img.alt = "";
         img.decoding = "async";
         img.draggable = false;
+        if (cors) img.crossOrigin = "anonymous";
         img.onload = () => img.classList.remove("rd-miss");
         img.onerror = () => img.classList.add("rd-miss");
         layer.el.append(img);
@@ -333,7 +415,7 @@
     place(layers.rain, rainZoom(view.z), (z, x, y) => f && rainUrl(f, z, x, y));
   }
   function draw() {
-    place(layers.base, view.z, baseUrl);
+    place(layers.base, view.z, baseUrl, true);
     drawRain();
     els.me.hidden = !me;
     if (me) {
@@ -434,5 +516,5 @@
     );
   }
 
-  window.Radar = { open };
+  window.Radar = { open, warm };
 })();

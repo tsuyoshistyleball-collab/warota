@@ -1895,6 +1895,35 @@ html[data-view="weather"] body { background: var(--surface); }
 .rd-time b { font-size: 18px; color: var(--fg); }
 .rd-kind { margin: 0 2px; padding: 1px 6px; border-radius: 6px; background: #e3edfd; color: #1a56c4; font-size: 11.5px; font-weight: 800; }
 .rd-kind.ahead { background: #fff0de; color: var(--accent-ink); }
+/* アナログ時計: 表示中の雨雲の時刻を指す。長針は実況なら青、予報ならオレンジ (時刻の欄の印と同じ色) */
+.rd-clock {
+  position: absolute;
+  top: calc(72px + env(safe-area-inset-top));
+  left: 10px;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+.rd-clock svg { display: block; width: 100%; height: 100%; }
+.rd-clock-face { fill: #fff; stroke: var(--line); stroke-width: 1.5; }
+.rd-clock-tick { stroke: #a3a9b2; stroke-width: 2; stroke-linecap: round; }
+.rd-clock-tick.big { stroke: var(--fg); stroke-width: 3.2; }
+.rd-clock-h,
+.rd-clock-m { stroke-linecap: round; transform-origin: 50px 50px; transition: transform .4s cubic-bezier(.3, .7, .3, 1); }
+.rd-clock-h { stroke: var(--fg); stroke-width: 6; }
+.rd-clock-m { stroke: #1a56c4; stroke-width: 4; }
+.rd-clock.ahead .rd-clock-m { stroke: var(--accent-ink); }
+.rd-clock-c { fill: var(--fg); }
+.rd-clock.jump .rd-clock-h,
+.rd-clock.jump .rd-clock-m { transition: none; }
+.rd-clock.off .rd-clock-h,
+.rd-clock.off .rd-clock-m { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .rd-clock-h, .rd-clock-m { transition: none; }
+}
 .rd-zoom {
   position: absolute;
   top: calc(10px + env(safe-area-inset-top));

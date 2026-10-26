@@ -278,6 +278,10 @@
         (気象庁などのデータ) / 警報・注意報: <a href="https://www.jma.go.jp/bosai/warning/" target="_blank" rel="noopener">気象庁ホームページ</a>
         / 住所: 国土地理院
       </p>`;
+    // 雨雲レーダーをすぐ開けるように、予報を出し終えてから現在地のまわりを先に読んでおく
+    setTimeout(() => {
+      if (window.World?.view() === "weather") window.Radar?.warm(cache.lat, cache.lon);
+    }, 1200);
     // 横に長い1時間ごとの表は、今の時刻が左端に来るようにしておく
     body.querySelector(".wx-scroll")?.scrollTo({ left: 0 });
   }
@@ -533,6 +537,7 @@
 
   // 雨雲レーダー (radar.js) は、分かっていれば現在地を真ん中にして開く
   $("wx-radar-btn").onclick = () => window.Radar?.open(cache?.lat, cache?.lon);
+  $("wx-radar-btn").addEventListener("pointerdown", () => window.Radar?.warm(cache?.lat, cache?.lon)); // 指が触れたら読み始める
 
   document.addEventListener("viewchange", (e) => {
     if (e.detail === "weather") onShow();
