@@ -239,24 +239,16 @@
     const [curText, curKind] = kindOf(cur.weather_code);
     const night = cur.is_day === 0;
 
-    // 1時間ごと: 今の時刻から明日の終わりまで
-    const h = fc.hourly;
-    let start = h.time.indexOf(`${cur.time.slice(0, 13)}:00`);
-    if (start < 0) start = 0;
-    let end = h.time.indexOf(`${d.time[1]}T23:00`);
-    end = end < 0 ? Math.min(h.time.length, start + 48) : end + 1;
-    const hours = [];
-    for (let i = start; i < end; i++) {
-      hours.push({
-        t: h.time[i], temp: h.temperature_2m[i], code: h.weather_code[i], pop: h.precipitation_probability?.[i],
-        mm: h.precipitation[i], day: h.is_day[i],
-      });
-    }
-
-    // 広い画面では、左に警報・今の天気・今日と明日、右に1時間ごとと週間予報
+    // 上に警報と1時間ごと (広い画面では横いっぱい)、その下に今の天気・今日と明日と、週間予報 (広い画面では左右に並べる)
     body.innerHTML = `
-      <div class="wx-colL">
+      <div class="wx-top">
       ${warnHTML(warn, p)}
+      <section class="wx-card wx-hourly" aria-labelledby="wx-hourly-h">
+        <h2 id="wx-hourly-h" class="wx-h">1時間ごと</h2>
+        ${WIDE_HOURS.matches ? hourlyDaysHTML(fc) : hourlyHTML(fc)}
+      </section>
+      </div>
+      <div class="wx-colL">
       <section class="wx-now wx-card" aria-label="今の天気">
         <div class="wx-now-main">
           ${icon(curKind, night)}
@@ -276,10 +268,6 @@
       <div class="wx-days">${[0, 1].map((i) => dayCard(d, i, i === 0 ? "今日" : "明日")).join("")}</div>
       </div>
       <div class="wx-colR">
-      <section class="wx-card wx-hourly" aria-labelledby="wx-hourly-h">
-        <h2 id="wx-hourly-h" class="wx-h">1時間ごと</h2>
-        ${hourlyHTML(hours)}
-      </section>
       <section class="wx-card wx-week" aria-labelledby="wx-week-h">
         <h2 id="wx-week-h" class="wx-h">週間予報</h2>
         ${weekHTML(d, cur.temperature_2m)}
@@ -305,43 +293,63 @@
     </section>`;
   }
 
-  // 1時間ごと: 時刻・天気・気温 (線で上がり下がりも見せる)・降水確率・降水量を、横にスクロールする表で
-  function hourlyHTML(hours) {
+  // ---- 1時間ごと ----
+  // 時刻・天気・気温 (線で上がり下がりも見せる)・降水確率・降水量。
+  // 狭い画面は今から明日の夜までを横にスクロールする1段、広い画面は今日と明日を 0時〜23時 の2段にして全部を見せる
+  const WIDE_HOURS = matchMedia("(min-width: 820px)");
+  const CURVE_H = 46; // 気温の線を引く高さ
+  const hourAt = (h, i) => ({
+    t: h.time[i], temp: h.temperature_2m[i], code: h.weather_code[i], pop: h.precipitation_probability?.[i],
+    mm: h.precipitation[i], day: h.is_day[i],
+  });
+  // 気温 → 線の高さ (lo〜hi を上下6pxずつ空けて収める)
+  const curveY = (lo, hi) => (t) => (hi === lo ? CURVE_H / 2 : 6 + (1 - (t - lo) / (hi - lo)) * (CURVE_H - 12));
+  const linePath = (pts) => pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join("");
+  const areaPath = (pts) => `${linePath(pts)}L${pts.at(-1)[0].toFixed(1)} ${CURVE_H}L${pts[0][0].toFixed(1)} ${CURVE_H}Z`;
+  const ROW_LABELS = "<span>気温</span><span>降水確率</span><span>降水量<small>mm</small></span>";
+
+  // 1時間分の列。label は見出しに出す文字 (今・明日・3時)
+  function hourCol(x, label, cls = "") {
+    const [text, kind] = kindOf(x.code);
+    const pop = x.pop == null ? "—" : `${x.pop}%`;
+    const mm = x.mm >= 0.05 ? (x.mm >= 10 ? Math.round(x.mm) : x.mm.toFixed(1)) : "0";
+    const spoken = label === "今" ? "今" : `${hourOf(x.t)}時`;
+    return `<div class="wx-col${cls}" role="listitem" aria-label="${spoken} ${esc(text)} ${Math.round(x.temp)}度 降水確率${pop} 降水量${mm}ミリ">
+      <span class="wx-t">${label}</span>
+      ${icon(kind, x.day === 0)}
+      <span class="wx-temp">${deg(x.temp)}</span>
+      <span class="wx-pop${x.pop >= 50 ? " wet" : ""}">${pop}</span>
+      <span class="wx-mm${x.mm >= 1 ? " wet" : ""}">${mm}</span>
+    </div>`;
+  }
+
+  // 狭い画面: 今の時刻から明日の終わりまでを1段で (横にスクロール)
+  function hourlyHTML(fc) {
+    const h = fc.hourly;
+    let start = h.time.indexOf(`${fc.current.time.slice(0, 13)}:00`);
+    if (start < 0) start = 0;
+    let end = h.time.indexOf(`${fc.daily.time[1]}T23:00`);
+    end = end < 0 ? Math.min(h.time.length, start + 48) : end + 1;
+    const hours = [];
+    for (let i = start; i < end; i++) hours.push(hourAt(h, i));
     if (!hours.length) return "";
     const CW = 52; // 1時間の幅
-    const H = 46; // 気温の線の高さ
     const temps = hours.map((x) => x.temp);
-    const lo = Math.min(...temps);
-    const hi = Math.max(...temps);
-    const y = (t) => (hi === lo ? H / 2 : 6 + (1 - (t - lo) / (hi - lo)) * (H - 12));
+    const y = curveY(Math.min(...temps), Math.max(...temps));
     const pts = hours.map((x, i) => [i * CW + CW / 2, y(x.temp)]);
-    const line = pts.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)} ${py.toFixed(1)}`).join("");
-    const area = `${line}L${pts[pts.length - 1][0].toFixed(1)} ${H}L${pts[0][0].toFixed(1)} ${H}Z`;
     const w = hours.length * CW;
     const cols = hours
       .map((x, i) => {
-        const hh = hourOf(x.t);
-        const first = i === 0;
-        const newDay = !first && hh === 0;
-        const [text, kind] = kindOf(x.code);
-        const pop = x.pop == null ? "—" : `${x.pop}%`;
-        const mm = x.mm >= 0.05 ? (x.mm >= 10 ? Math.round(x.mm) : x.mm.toFixed(1)) : "0";
-        return `<div class="wx-col${newDay ? " wx-newday" : ""}${first ? " wx-nowcol" : ""}" role="listitem"
-          aria-label="${first ? "今" : `${hh}時`} ${esc(text)} ${Math.round(x.temp)}度 降水確率${pop} 降水量${mm}ミリ">
-          <span class="wx-t">${first ? "今" : newDay ? "明日" : `${hh}時`}</span>
-          ${icon(kind, x.day === 0)}
-          <span class="wx-temp">${deg(x.temp)}</span>
-          <span class="wx-pop${x.pop >= 50 ? " wet" : ""}">${pop}</span>
-          <span class="wx-mm${x.mm >= 1 ? " wet" : ""}">${mm}</span>
-        </div>`;
+        const newDay = i > 0 && hourOf(x.t) === 0;
+        return hourCol(x, i === 0 ? "今" : newDay ? "明日" : `${hourOf(x.t)}時`, `${newDay ? " wx-newday" : ""}${i === 0 ? " wx-nowcol" : ""}`);
       })
       .join("");
     return `<div class="wx-hgrid">
-      <div class="wx-rowlabels" aria-hidden="true"><span></span><span></span><span>気温</span><span>降水確率</span><span>降水量<small>mm</small></span></div>
+      <div class="wx-rowlabels" aria-hidden="true">${ROW_LABELS}</div>
       <div class="wx-scroll" tabindex="0" aria-label="1時間ごとの天気 (横にスクロール)">
         <div class="wx-track" style="width:${w}px">
-          <svg class="wx-curve" viewBox="0 0 ${w} ${H}" width="${w}" height="${H}" aria-hidden="true">
-            <path d="${area}" class="wx-curve-area"/><path d="${line}" class="wx-curve-line"/>
+          <svg class="wx-curve" viewBox="0 0 ${w} ${CURVE_H}" width="${w}" height="${CURVE_H}" aria-hidden="true">
+            <path d="${areaPath(pts)}" class="wx-curve-area"/><path d="${linePath(pts)}" class="wx-curve-line"/>
             <circle cx="${pts[0][0]}" cy="${pts[0][1]}" r="4" class="wx-curve-now"/>
           </svg>
           <div class="wx-cols" role="list">${cols}</div>
@@ -349,6 +357,53 @@
       </div>
     </div>`;
   }
+
+  // 広い画面: 今日と明日を 0時〜23時 の24列の2段に (同じ時刻が上下にそろう)。
+  // 今日の過ぎた時間は薄く出す。気温の線の目盛りは2日で共通
+  function hourlyDaysHTML(fc) {
+    const h = fc.hourly;
+    const nowKey = `${fc.current.time.slice(0, 13)}:00`;
+    const days = [0, 1].map((di) => {
+      const s = h.time.indexOf(`${fc.daily.time[di]}T00:00`);
+      return s < 0 ? [] : h.time.slice(s, s + 24).map((_, k) => hourAt(h, s + k));
+    });
+    const temps = days.flat().map((x) => x.temp);
+    if (!temps.length) return "";
+    const y = curveY(Math.min(...temps), Math.max(...temps));
+    return `<div class="wx-hdays">${days
+      .map((hours, di) => {
+        if (!hours.length) return "";
+        const name = di === 0 ? "今日" : "明日";
+        const { w, md } = dayOf(fc.daily.time[di]);
+        const now = hours.findIndex((x) => x.t === nowKey); // 今日の段だけ見つかる
+        // 線は 0〜2400 の座標で引き、横は表の幅に合わせて伸ばす (線の太さは変えない)
+        const pts = hours.map((x, i) => [(i + 0.5) * 100, y(x.temp)]);
+        const past = now > 0 ? pts.slice(0, now + 1) : [];
+        const rest = now > 0 ? pts.slice(now) : pts;
+        const cols = hours
+          .map((x, i) => hourCol(x, i === now ? "今" : `${hourOf(x.t)}時`, i === now ? " wx-nowcol" : now > 0 && i < now ? " past" : ""))
+          .join("");
+        const dot = now >= 0
+          ? `<i class="wx-hdot" style="left:${(((now + 0.5) / hours.length) * 100).toFixed(2)}%;top:${(54 + pts[now][1]).toFixed(1)}px"></i>`
+          : "";
+        return `<div class="wx-hday">
+          <div class="wx-rowlabels" aria-hidden="true"><p class="wx-hname"><b>${name}</b><small>${md}(${w})</small></p>${ROW_LABELS}</div>
+          <div class="wx-h24" role="list" aria-label="${name}の1時間ごとの天気">
+            <svg class="wx-curve" viewBox="0 0 ${hours.length * 100} ${CURVE_H}" preserveAspectRatio="none" aria-hidden="true">
+              <path d="${areaPath(rest)}" class="wx-curve-area"/>
+              ${past.length ? `<path d="${linePath(past)}" class="wx-curve-line past" vector-effect="non-scaling-stroke"/>` : ""}
+              <path d="${linePath(rest)}" class="wx-curve-line" vector-effect="non-scaling-stroke"/>
+            </svg>
+            ${dot}${cols}
+          </div>
+        </div>`;
+      })
+      .join("")}</div>`;
+  }
+  // 画面の幅が変わったら (折りたたみを開いた・閉じたなど) 1時間ごとの形を切り替える
+  WIDE_HOURS.addEventListener("change", () => {
+    if (cache?.fc && body.querySelector(".wx-hourly")) render();
+  });
 
   // 週間予報: 曜日・天気・降水確率と、1週間で共通の目盛りの上に最低〜最高気温の幅
   function weekHTML(d, now) {
@@ -475,6 +530,9 @@
     }
     message("ask");
   }
+
+  // 雨雲レーダー (radar.js) は、分かっていれば現在地を真ん中にして開く
+  $("wx-radar-btn").onclick = () => window.Radar?.open(cache?.lat, cache?.lon);
 
   document.addEventListener("viewchange", (e) => {
     if (e.detail === "weather") onShow();

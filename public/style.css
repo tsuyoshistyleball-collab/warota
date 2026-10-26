@@ -1564,8 +1564,8 @@ html[data-view="world"] body { background: var(--surface); }
 }
 
 /* ===== 天気 =====
-   今の天気を大きく、その下に今日と明日、1時間ごと (横にスクロールする表)、週間予報。
-   広い画面では左に今の天気など、右に1時間ごとと週間予報 (折りたたみの折り目をまたがない) */
+   上に警報と1時間ごと、その下に今の天気・今日と明日、週間予報。
+   広い画面では警報と1時間ごとを横いっぱいに、その下の今の天気などと週間予報を左右に並べる */
 html[data-view="weather"] body { background: var(--surface); }
 #view-weather {
   --wx-hi: #c4342b; /* 最高気温 (日本の天気予報の慣習で赤) */
@@ -1574,7 +1574,27 @@ html[data-view="weather"] body { background: var(--surface); }
   --wx-temp: #e07100; /* 気温の線・週間予報の気温の幅 */
   padding: 0 12px calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom));
 }
-.wx-head { padding: calc(14px + env(safe-area-inset-top)) 6px 12px; }
+.wx-head { display: flex; align-items: flex-start; gap: 12px; padding: calc(14px + env(safe-area-inset-top)) 6px 12px; }
+.wx-head-main { flex: 1; min-width: 0; }
+.wx-radar-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 9px 14px 9px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+  color: var(--accent-ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.wx-radar-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.wx-radar-btn:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
 .wx-eyebrow {
   display: flex;
   align-items: center;
@@ -1587,7 +1607,8 @@ html[data-view="weather"] body { background: var(--surface); }
 .wx-eyebrow svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
 #wx-place { margin: 2px 0 0; font-size: 23px; font-weight: 800; line-height: 1.25; text-wrap: balance; }
 .wx-sub { margin: 3px 0 0; font-size: 12px; color: var(--fg-dim); }
-.wx-body, .wx-colL, .wx-colR { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.wx-body, .wx-top, .wx-colL, .wx-colR { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.wx-body.loading .wx-top,
 .wx-body.loading .wx-colL,
 .wx-body.loading .wx-colR { opacity: .55; transition: opacity .2s; }
 .wx-loading { margin: 24px 6px; color: var(--fg-dim); font-size: 14px; }
@@ -1664,7 +1685,6 @@ html[data-view="weather"] body { background: var(--surface); }
   font-weight: 700;
   color: var(--fg-dim);
 }
-.wx-rowlabels span:nth-child(-n+2) { display: none; }
 .wx-rowlabels span { height: 24px; line-height: 24px; white-space: nowrap; }
 .wx-rowlabels small { margin-left: 1px; font-size: 9px; }
 .wx-scroll {
@@ -1701,6 +1721,34 @@ html[data-view="weather"] body { background: var(--surface); }
 .wx-nowcol .wx-t { color: var(--accent-ink); }
 .wx-newday { box-shadow: inset 1px 0 var(--line); }
 .wx-newday .wx-t { color: var(--fg); }
+
+/* 広い画面の1時間ごと: 今日と明日を 0時〜23時 の2段に。列の幅は表の幅を24等分 */
+.wx-hdays { margin-top: 10px; }
+.wx-hday { display: flex; }
+.wx-hday + .wx-hday { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.wx-hday .wx-rowlabels { width: 60px; padding-top: 0; }
+.wx-hname { display: flex; flex-direction: column; height: 100px; margin: 0; padding-top: 22px; line-height: 1.3; }
+.wx-hname b { font-size: 15px; color: var(--fg); }
+.wx-hname small { margin: 0; font-size: 11px; }
+.wx-h24 { position: relative; flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); }
+.wx-h24 .wx-curve { width: 100%; height: 46px; }
+.wx-h24 .wx-col { width: auto; min-width: 0; }
+.wx-h24 .wx-t { font-size: 11px; }
+.wx-h24 .wx-ic { width: 28px; height: 28px; margin: 3px 0; }
+.wx-h24 .wx-temp { font-size: 13px; }
+.wx-h24 .wx-pop,
+.wx-h24 .wx-mm { font-size: 11px; }
+.wx-curve-line.past { opacity: .35; }
+.wx-col.past > * { opacity: .4; }
+.wx-hdot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--wx-temp);
+  box-shadow: 0 0 0 2px var(--card);
+}
 
 /* 週間予報: 気温の幅は1週間で共通の目盛り */
 .wx-weeklist { margin: 6px 0 0; padding: 0; list-style: none; }
@@ -1762,19 +1810,130 @@ html[data-view="weather"] body { background: var(--surface); }
   #view-weather {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
-    column-gap: 20px;
+    align-content: start;
+    gap: 10px 20px;
     max-width: 1320px;
     margin: 0 auto;
     padding-left: 16px;
     padding-right: 16px;
   }
-  .wx-head { grid-column: 1 / -1; }
+  .wx-head, .wx-top, .wx-credit, .wx-loading, .wx-body > .wx-msg { grid-column: 1 / -1; }
+  .wx-head { margin-bottom: -10px; }
   .wx-body { display: contents; }
   .wx-colL { grid-column: 1; }
   .wx-colR { grid-column: 2; }
-  .wx-credit, .wx-loading, .wx-body > .wx-msg { grid-column: 1 / -1; }
 }
+
+/* ===== 雨雲レーダー (全画面。radar.js) =====
+   地図の上に、左上に時刻、右上に拡大・縮小、下に再生と時刻のつまみ・雨の強さの色 */
+.rd {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: #dfe5ea;
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+.rd[hidden] { display: none; }
+.rd-map { position: absolute; inset: 0; overflow: hidden; cursor: grab; outline: none; }
+.rd-map:active { cursor: grabbing; }
+.rd-map:focus-visible { box-shadow: inset 0 0 0 3px var(--accent-ink); }
+.rd-pane, .rd-layer { position: absolute; inset: 0; }
+.rd-layer img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.rd-layer img.rd-miss { visibility: hidden; }
+.rd-rain { opacity: .8; }
+.rd-me {
+  position: absolute;
+  left: -8px;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1a73e8;
+  box-shadow: 0 0 0 3px #fff, 0 1px 6px rgba(0, 0, 0, .35);
+}
+.rd-btn {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--fg);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+.rd-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.rd-btn svg .fill { fill: currentColor; stroke: none; }
+.rd-btn:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.rd-bar {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  left: 10px;
+  max-width: calc(100% - 82px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 16px 5px 5px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .95);
+  box-shadow: var(--shadow-md);
+}
+.rd-bar .rd-btn { box-shadow: none; background: var(--bg2); }
+.rd-bar h2 { margin: 0; font-size: 13px; font-weight: 800; color: var(--ink-2); }
+.rd-time { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rd-time b { font-size: 18px; color: var(--fg); }
+.rd-kind { margin: 0 2px; padding: 1px 6px; border-radius: 6px; background: #e3edfd; color: #1a56c4; font-size: 11.5px; font-weight: 800; }
+.rd-kind.ahead { background: #fff0de; color: var(--accent-ink); }
+.rd-zoom {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rd-ctrl {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 10px 14px 8px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: var(--shadow-md);
+}
+.rd-msg { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #b3261e; }
+.rd-row { display: flex; align-items: center; gap: 12px; }
+.rd-play { flex: none; width: 48px; height: 48px; border-radius: 50%; background: var(--accent-ink); color: #fff; box-shadow: none; }
+.rd-track { flex: 1; min-width: 0; }
+.rd-slider { display: block; width: 100%; height: 30px; margin: 0; accent-color: var(--accent-ink); }
+.rd-ticks { position: relative; height: 16px; font-size: 11px; color: var(--fg-dim); }
+.rd-ticks span { position: absolute; top: 0; white-space: nowrap; }
+.rd-ticks span:first-child { left: 0; }
+.rd-ticks span:last-child { right: 0; }
+.rd-tick-now { left: 50%; transform: translateX(-50%); font-weight: 800; color: var(--fg); }
+.rd-legend { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; }
+.rd-legend-scale { flex: 1; }
+.rd-legend-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .1); }
+.rd-legend-bar i { flex: 1; }
+.rd-legend-nums { position: relative; display: block; height: 15px; font-size: 10.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+.rd-legend-nums span { position: absolute; top: 2px; transform: translateX(-50%); }
+.rd-legend-unit { margin-top: -3px; font-size: 10.5px; color: var(--fg-dim); white-space: nowrap; }
+.rd-attr { margin: 4px 0 0; font-size: 10.5px; color: var(--fg-dim); }
+.rd-attr a { color: inherit; }
 
 /* ===== 設定画面 ===== */
 html[data-view="settings"] body { background: var(--surface); }

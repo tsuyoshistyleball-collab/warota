@@ -115,9 +115,16 @@
 <!-- 天気 (中身は weather.js が作る) -->
 <section id="view-weather" aria-labelledby="wx-place" hidden>
   <header class="wx-head">
-    <p class="wx-eyebrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>現在地の天気</p>
-    <h1 id="wx-place">天気</h1>
-    <p id="wx-sub" class="wx-sub"></p>
+    <div class="wx-head-main">
+      <p class="wx-eyebrow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>現在地の天気</p>
+      <h1 id="wx-place">天気</h1>
+      <p id="wx-sub" class="wx-sub"></p>
+    </div>
+    <!-- 雨雲レーダー (radar.js) を全画面で開く -->
+    <button type="button" id="wx-radar-btn" class="wx-radar-btn">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15h9.6a3.6 3.6 0 0 0 .3-7.2 5.2 5.2 0 0 0-9.9 1.3A3 3 0 0 0 7 15z"/><path d="M8.6 18l-1.1 2.4M12.6 18l-1.1 2.4M16.6 18l-1.1 2.4"/></svg>
+      雨雲レーダー
+    </button>
   </header>
   <div id="wx-body" class="wx-body"></div>
 </section>
@@ -421,5 +428,6 @@
 <script src="./app.js"></script>
 <script src="./world.js"></script>
 <script src="./weather.js"></script>
+<script src="./radar.js"></script>
 </body>
 </html>
