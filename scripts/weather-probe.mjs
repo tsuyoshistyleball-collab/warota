@@ -415,36 +415,38 @@ export async function probe11() {
   for (const m of [...page.matchAll(/(?:tile|jmatile|xyz)[^"'\s<>]{0,120}/g)].slice(0, 20)) console.log(`  ${m[0]}`);
 }
 
-// 雨雲レーダー (public/radar.js) を本物の地図と雨雲で開いて、画面を撮る (ログに JPEG を base64 で出す)
+// 雨雲レーダー (public/radar.js) を本物の地図と雨雲で開いて、画面を撮る (ログに半分の大きさの JPEG を base64 で出す)
 export async function probe12() {
   const fs = await import("node:fs");
   const { execFileSync } = await import("node:child_process");
   const pub = `${process.cwd()}/public`;
-  const chrome = ["google-chrome", "chromium", "chromium-browser"].find((c) => {
-    try {
-      execFileSync("which", [c]);
-      return true;
-    } catch {
-      return false;
-    }
-  });
-  console.log(`browser: ${chrome}`);
-  for (const [name, w, h, args] of [["tokyo", 412, 900, "35.6812, 139.7671"], ["japan", 412, 900, ""], ["fold", 884, 1000, "34.70, 135.50"]]) {
+  execFileSync("python3", ["-m", "pip", "install", "--quiet", "--disable-pip-version-check", "--break-system-packages", "pillow"], { stdio: "inherit" });
+  for (const [name, w, h, args] of [["tokyo", 412, 900, "35.6812, 139.7671"], ["japan", 412, 900, ""]]) {
     const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
       <link rel="stylesheet" href="file://${pub}/style.css"></head><body>
       <script src="file://${pub}/radar.js"></script><script>Radar.open(${args});</script></body></html>`;
     fs.writeFileSync(`/tmp/radar-${name}.html`, html);
     try {
-      execFileSync(chrome, [
+      const out = execFileSync("google-chrome", [
         "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars", `--window-size=${w},${h}`,
-        "--virtual-time-budget=15000", `--screenshot=/tmp/radar-${name}.png`, `file:///tmp/radar-${name}.html`,
-      ], { stdio: "pipe", timeout: 60000 });
-      execFileSync("convert", [`/tmp/radar-${name}.png`, "-quality", "72", `/tmp/radar-${name}.jpg`]);
-      const b64 = fs.readFileSync(`/tmp/radar-${name}.jpg`).toString("base64");
-      console.log(`SHOT ${name} ${b64.length}`);
-      console.log(`B64:${name}:${b64}`);
+        "--enable-logging=stderr", "--v=0", "--virtual-time-budget=20000",
+        `--screenshot=/tmp/radar-${name}.png`, `file:///tmp/radar-${name}.html`,
+      ], { stdio: "pipe", timeout: 90000 });
+      const logs = out.toString();
+      void logs;
     } catch (err) {
-      console.log(`shot ${name} NG ${err.message} ${err.stderr?.toString().slice(0, 400) ?? ""}`);
+      console.log(`shot ${name} NG ${err.message}`);
+      continue;
     }
+    const b64 = execFileSync("python3", ["-c", `
+import base64, io, sys
+from PIL import Image
+im = Image.open("/tmp/radar-${name}.png").convert("RGB")
+im = im.resize((im.width // 2, im.height // 2))
+buf = io.BytesIO(); im.save(buf, "JPEG", quality=62)
+sys.stdout.write(base64.b64encode(buf.getvalue()).decode())
+`]).toString();
+    console.log(`SHOT ${name} ${b64.length}`);
+    console.log(`B64:${name}:${b64}`);
   }
 }
