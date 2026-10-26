@@ -415,38 +415,56 @@ export async function probe11() {
   for (const m of [...page.matchAll(/(?:tile|jmatile|xyz)[^"'\s<>]{0,120}/g)].slice(0, 20)) console.log(`  ${m[0]}`);
 }
 
-// 雨雲レーダー (public/radar.js) を本物の地図と雨雲で開いて、画面を撮る (ログに半分の大きさの JPEG を base64 で出す)
+// 雨雲レーダー (public/radar.js) を本物の地図と雨雲で開いて確かめる。
+// 開いたあとの画面の中身 (時刻・地図の画像) と、画面写真の色の数 (地図が出たか・雨雲の色がいくつあるか) をログに出す
 export async function probe12() {
   const fs = await import("node:fs");
   const { execFileSync } = await import("node:child_process");
   const pub = `${process.cwd()}/public`;
   execFileSync("python3", ["-m", "pip", "install", "--quiet", "--disable-pip-version-check", "--break-system-packages", "pillow"], { stdio: "inherit" });
-  for (const [name, w, h, args] of [["tokyo", 412, 900, "35.6812, 139.7671"], ["japan", 412, 900, ""]]) {
+  for (const [name, w, h, args] of [["tokyo", 412, 900, "35.6812, 139.7671"], ["japan", 412, 900, ""], ["fold", 884, 1000, "34.70, 135.50"]]) {
     const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
       <link rel="stylesheet" href="file://${pub}/style.css"></head><body>
       <script src="file://${pub}/radar.js"></script><script>Radar.open(${args});</script></body></html>`;
     fs.writeFileSync(`/tmp/radar-${name}.html`, html);
-    try {
-      const out = execFileSync("google-chrome", [
+    const chrome = (extra) =>
+      execFileSync("google-chrome", [
         "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars", `--window-size=${w},${h}`,
-        "--enable-logging=stderr", "--v=0", "--virtual-time-budget=20000",
-        `--screenshot=/tmp/radar-${name}.png`, `file:///tmp/radar-${name}.html`,
-      ], { stdio: "pipe", timeout: 90000 });
-      const logs = out.toString();
-      void logs;
-    } catch (err) {
-      console.log(`shot ${name} NG ${err.message}`);
-      continue;
-    }
-    const b64 = execFileSync("python3", ["-c", `
-import base64, io, sys
+        "--virtual-time-budget=20000", ...extra, `file:///tmp/radar-${name}.html`,
+      ], { stdio: ["ignore", "pipe", "pipe"], timeout: 90000 });
+    try {
+      const dom = chrome(["--dump-dom"]).toString();
+      const pick = (re) => (dom.match(re)?.[1] ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+      const srcs = (cls) => [...(dom.match(new RegExp(`class="rd-layer ${cls}">([\\s\\S]*?)</div>`))?.[1] ?? "").matchAll(/data-src="([^"]+)"/g)].map((m) => m[1]);
+      const base = srcs("rd-base");
+      const rain = srcs("rd-rain");
+      console.log(`\n=== ${name}: time="${pick(/class="rd-time"[^>]*>([\s\S]*?)<\/p>/)}" msg="${pick(/class="rd-msg"[^>]*>([\s\S]*?)<\/p>/)}" slider=${pick(/class="rd-slider"[^>]*max="(\d+)"/) || dom.match(/max="(\d+)"/)?.[1]}`);
+      console.log(`base ${base.length}: ${base.slice(0, 2).join(" ")}`);
+      console.log(`rain ${rain.length}: ${rain.slice(0, 2).join(" ")}`);
+      chrome([`--screenshot=/tmp/radar-${name}.png`]);
+      const stats = execFileSync("python3", ["-c", `
 from PIL import Image
 im = Image.open("/tmp/radar-${name}.png").convert("RGB")
-im = im.resize((im.width // 2, im.height // 2))
-buf = io.BytesIO(); im.save(buf, "JPEG", quality=62)
-sys.stdout.write(base64.b64encode(buf.getvalue()).decode())
+W, H = im.size
+# 地図の部分だけ (上の時刻の欄と、下の再生・色の説明の欄を除く)
+box = im.crop((0, 70, W, H - 200))
+px = list(box.getdata())
+bg = (0xdf, 0xe5, 0xea)
+far = lambda a, b, d: sum((x - y) ** 2 for x, y in zip(a, b)) > d * d
+mapped = sum(1 for p in px if far(p, bg, 8)) / len(px)
+legend = ["#f2f2ff", "#a0d2ff", "#218cff", "#0041ff", "#faf500", "#ff9900", "#ff2800", "#b40068"]
+counts = []
+for c in legend:
+    rgb = tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
+    t = tuple(round(0.8 * v + 0.2 * 238) for v in rgb)
+    counts.append(sum(1 for p in px if not far(p, t, 22)))
+top = sorted(box.quantize(12).convert("RGB").getcolors(1 << 20), reverse=True)[:8]
+print(f"map pixels not background: {mapped:.0%}; rain-color pixels by strength: {counts}")
+print("top colors:", " ".join("#%02x%02x%02x:%d" % (c[1] + (c[0],)) for c in top))
 `]).toString();
-    console.log(`SHOT ${name} ${b64.length}`);
-    console.log(`B64:${name}:${b64}`);
+      console.log(stats.trim());
+    } catch (err) {
+      console.log(`${name} NG ${err.message} ${(err.stderr ?? "").toString().slice(-600)}`);
+    }
   }
 }
