@@ -170,6 +170,13 @@
     root.hidden = true;
     document.body.classList.remove("noscroll");
     preloaded.clear();
+    // 次に開いたときに古い雨雲や時刻が見えないように、消しておく (開くたびに「今」から)
+    frames = [];
+    frame = nowFrame = 0;
+    layers.rain.el.textContent = "";
+    layers.rain.imgs.clear();
+    els.time.textContent = "読み込み中…";
+    els.slider.max = "0";
     returnFocus?.focus?.({ preventScroll: true }); // ページを動かさずに、開いたボタンへ戻す
   }
   window.addEventListener("popstate", () => {
