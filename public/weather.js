@@ -213,6 +213,74 @@
     return { at, areas };
   }
 
+  // ---- おすすめの服装 ----
+  // これから外にいそうな時間 (18時より前なら21時まで、それより後は6時間) の一番高い気温で服を決め、
+  // 気温差が大きければ羽織るもの、雨が降りそうなら傘もすすめる
+  const WEAR = [
+    // [この気温以上, 服, ひとこと, 絵]
+    [28, "ノースリーブ", "とても暑いので涼しい服で。こまめに水分を", "tank"],
+    [24, "半袖", "半袖で過ごせる暖かさ", "tee"],
+    [20, "長袖シャツ", "薄手の長袖1枚でちょうどよい", "shirt"],
+    [16, "カーディガン", "長袖にカーディガンなどを1枚はおって", "cardigan"],
+    [12, "ジャケット", "ジャケットやトレンチコートを", "jacket"],
+    [7, "コート", "コートが必要な寒さ", "coat"],
+    [-Infinity, "ダウン", "ダウンやマフラーでしっかり防寒を", "down"],
+  ];
+  function wearOf(fc) {
+    const h = fc.hourly;
+    const i = h.time.indexOf(`${fc.current.time.slice(0, 13)}:00`);
+    if (i < 0) return null;
+    const hour = hourOf(h.time[i]);
+    const end = i + (hour < 18 ? 21 - hour : 6);
+    const temps = [fc.current.temperature_2m, ...h.temperature_2m.slice(i, end + 1)];
+    const hi = Math.max(...temps);
+    const lo = Math.min(...temps);
+    const pop = Math.max(0, ...(h.precipitation_probability ?? []).slice(i, end + 1).filter((x) => x != null));
+    const [, name, tip, art] = WEAR.find(([t]) => hi >= t);
+    const tips = [tip];
+    if (hi - lo >= 7) tips.push(hour < 18 ? "時間によって気温差が大きいので、脱ぎ着しやすい服で" : "夜は冷えてくるので、羽織るものを");
+    if (pop >= 50) tips.push("雨が降りそうなので傘を持って");
+    else if (pop >= 30) tips.push("念のため折りたたみ傘を");
+    return { name, art, tip: `${tips.join("。")}。`, rain: pop >= 30 };
+  }
+
+  // 服の絵 (48×48)。袖の長さ・丈・色で、暖かい服ほど長く濃くなるように
+  const LONG = "M18 7Q24 11 30 7L38 10L43 38L37 39L35 20V42H13V20L11 39L5 38L10 10Z"; // 長袖の形
+  const WEAR_ART = {
+    tank: `<path d="M16 6H20Q24 15 28 6H32Q31 16 35 20V42H13V20Q17 16 16 6Z" fill="#ff8a3d"/>`,
+    tee: `<path d="M18 7Q24 12 30 7L38 10L44 18L38 22L35 19V42H13V19L10 22L4 18L10 10Z" fill="#3fa9f5"/>`,
+    shirt:
+      `<path d="${LONG}" fill="#4fbf8f"/><path d="M18 7L24 13L21 16ZM30 7L24 13L27 16Z" fill="#e9f7f0"/>` +
+      `<path d="M24 13V42" stroke="#e9f7f0" stroke-width="1.4"/>`,
+    cardigan:
+      `<path d="${LONG}" fill="#c8925a"/><path d="M18.6 7.4Q24 11 29.4 7.4L24 27Z" fill="#fff"/>` +
+      `<circle cx="24" cy="31" r="1.4" fill="#7a5130"/><circle cx="24" cy="36" r="1.4" fill="#7a5130"/>` +
+      `<path d="M13 40H35" stroke="#a87442" stroke-width="2"/>`,
+    jacket:
+      `<path d="${LONG}" fill="#3f6fb0"/><path d="M18.6 7.4Q24 11 29.4 7.4L24 22Z" fill="#fff"/>` +
+      `<path d="M18.6 7.4L16.5 14L22 19ZM29.4 7.4L31.5 14L26 19Z" fill="#2c548c"/><circle cx="24" cy="29" r="1.5" fill="#1d3a63"/>` +
+      `<path d="M16 33H20M28 33H32" stroke="#2c548c" stroke-width="1.6" stroke-linecap="round"/>`,
+    coat:
+      `<path d="M18 7Q24 11 30 7L38 10L43 38L37 39L35 20V46H13V20L11 39L5 38L10 10Z" fill="#7b5e4b"/>` +
+      `<path d="M18.6 7.4L16 15L22 20L24 15L26 20L32 15L29.4 7.4Q24 11 18.6 7.4Z" fill="#5c4535"/>` +
+      `<path d="M13 30H35" stroke="#4a372a" stroke-width="2.4"/><path d="M24 15V46" stroke="#4a372a" stroke-width="1.2"/>` +
+      `<circle cx="21" cy="25" r="1.3" fill="#e8d5c4"/><circle cx="27" cy="25" r="1.3" fill="#e8d5c4"/>` +
+      `<circle cx="21" cy="36" r="1.3" fill="#e8d5c4"/><circle cx="27" cy="36" r="1.3" fill="#e8d5c4"/>`,
+    down:
+      `<path d="M17 9Q24 13 31 9L39 12Q44 25 43 38L37 39L35 22Q36 34 35 44H13Q12 34 13 22L11 39L5 38Q4 25 9 12Z" fill="#e2583e"/>` +
+      `<path d="M13.5 20H34.5M13 27.5H35M13 35H35" stroke="#b9432d" stroke-width="1.6"/>` +
+      `<path d="M16 8Q24 14 32 8L33 12Q24 19 15 12Z" fill="#2f5fa8"/><path d="M27 15L29.5 27L25.5 27.5L24 16Z" fill="#2f5fa8"/>`,
+  };
+  const UMBRELLA =
+    `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12.5Q12 2 21 12.5Z" fill="#2f7fd8"/>` +
+    `<path d="M12 12V19Q12 21.5 9.5 21.2" fill="none" stroke="#2f7fd8" stroke-width="2" stroke-linecap="round"/></svg>`;
+  function wearHTML(w) {
+    return `<figure class="wx-wear" aria-label="おすすめの服装: ${esc(w.name)}${w.rain ? "と傘" : ""}">
+      <div class="wx-wear-pic"><svg viewBox="0 0 48 48" aria-hidden="true">${WEAR_ART[w.art]}</svg>${w.rain ? `<span class="wx-wear-umb">${UMBRELLA}</span>` : ""}</div>
+      <figcaption><small>おすすめの服装</small><b>${esc(w.name)}</b></figcaption>
+    </figure>`;
+  }
+
   // ---- 表示 ----
   const W = ["日", "月", "火", "水", "木", "金", "土"];
   const dayOf = (date) => {
@@ -238,6 +306,7 @@
     const d = fc.daily;
     const [curText, curKind] = kindOf(cur.weather_code);
     const night = cur.is_day === 0;
+    const wear = wearOf(fc);
 
     // 上に警報と1時間ごと (広い画面では横いっぱい)、その下に今の天気・今日と明日と、週間予報 (広い画面では左右に並べる)
     body.innerHTML = `
@@ -252,11 +321,13 @@
       <section class="wx-now wx-card" aria-label="今の天気">
         <div class="wx-now-main">
           ${icon(curKind, night)}
-          <div>
+          <div class="wx-now-t">
             <p class="wx-now-temp">${deg(cur.temperature_2m)}</p>
             <p class="wx-now-text">${esc(curText)}</p>
           </div>
+          ${wear ? wearHTML(wear) : ""}
         </div>
+        ${wear ? `<p class="wx-wear-tip">${esc(wear.tip)}</p>` : ""}
         <dl class="wx-facts">
           <div><dt>最高</dt><dd class="wx-hi">${deg(d.temperature_2m_max[0])}</dd></div>
           <div><dt>最低</dt><dd class="wx-lo">${deg(d.temperature_2m_min[0])}</dd></div>
