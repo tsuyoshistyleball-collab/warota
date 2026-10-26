@@ -448,7 +448,7 @@ im = Image.open("/tmp/radar-${name}.png").convert("RGB")
 W, H = im.size
 # 地図の部分だけ (上の時刻の欄と、下の再生・色の説明の欄を除く)
 box = im.crop((0, 70, W, H - 200))
-px = list(box.getdata())
+px = list(box.get_flattened_data() if hasattr(box, "get_flattened_data") else box.getdata())
 bg = (0xdf, 0xe5, 0xea)
 far = lambda a, b, d: sum((x - y) ** 2 for x, y in zip(a, b)) > d * d
 mapped = sum(1 for p in px if far(p, bg, 8)) / len(px)
