@@ -379,9 +379,10 @@
     }
     return out;
   }
-  function place(layer, lz, url, cors = false) {
+  // v・w・h を渡すと、その地図 (天気のページの小さな地図) に置く。渡さなければ全画面の地図
+  function place(layer, lz, url, cors = false, v, w, h) {
     const want = new Set();
-    for (const t of tilesInView(lz)) {
+    for (const t of tilesInView(lz, v, w, h)) {
       const key = `${lz}/${t.tx}/${t.ty}`;
       want.add(key);
       let img = layer.imgs.get(key);
@@ -516,5 +517,50 @@
     );
   }
 
-  window.Radar = { open, warm };
+  // ---- 天気のページの一番上の小さな地図 (触っても動かない。押すと全画面で開く) ----
+  const pv = { box: null, lat: NaN, lon: NaN, timer: 0 };
+  async function preview(box, lat, lon) {
+    if (!box) return;
+    if (pv.box !== box) {
+      pv.box = box;
+      box.innerHTML = `
+        <span class="rd-layer rdp-base"></span><span class="rd-layer rd-rain rdp-rain"></span><i class="rd-me" hidden></i>
+        <span class="rdp-tag"><b>雨雲レーダー</b> <span class="rdp-time">読み込み中…</span></span>
+        <span class="rdp-open">押すと拡大</span>
+        <span class="rdp-attr">地図: 地理院タイル / 雨雲: 気象庁</span>`;
+      pv.base = { el: box.querySelector(".rdp-base"), imgs: new Map() };
+      pv.rain = { el: box.querySelector(".rdp-rain"), imgs: new Map() };
+      pv.me = box.querySelector(".rd-me");
+      pv.time = box.querySelector(".rdp-time");
+      // 天気のタブを開いた・画面の幅が変わったときに描き直す (隠れている間は大きさが0なので描かない)
+      new ResizeObserver(() => preview(box, pv.lat, pv.lon)).observe(box);
+    }
+    pv.lat = lat;
+    pv.lon = lon;
+    clearTimeout(pv.timer);
+    const w = box.clientWidth;
+    const h = box.clientHeight;
+    if (!w || !h) return;
+    const has = Number.isFinite(lat) && Number.isFinite(lon);
+    const v = { z: has ? HOME_Z : MIN_Z, x: 0, y: 0 };
+    [v.x, v.y] = has ? toPx(lat, lon, v.z) : toPx(36.5, 137.5, v.z);
+    place(pv.base, v.z, baseUrl, true, v, w, h);
+    pv.me.hidden = !has;
+    if (has) pv.me.style.transform = `translate(${w / 2}px,${h / 2}px)`;
+    try {
+      await fetchFrames();
+    } catch {
+      pv.time.textContent = "取得できませんでした";
+      return;
+    }
+    const f = frames[nowFrame];
+    place(pv.rain, rainZoom(v.z), (z, x, y) => rainUrl(f, z, x, y), false, v, w, h);
+    pv.time.textContent = `${hhmm(f.time)} 実況`;
+    // 見ている間は5分ごとに新しい雨雲に入れ替える
+    clearTimeout(pv.timer);
+    pv.timer = setTimeout(() => preview(box, pv.lat, pv.lon), 5 * 60 * 1000);
+  }
+
+  window.Radar = { open, warm, preview };
+  window.Weather?.preview?.(); // 天気のページが先に読み込まれていたら、ここで描く
 })();

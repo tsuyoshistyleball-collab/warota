@@ -349,6 +349,7 @@
         (気象庁などのデータ) / 警報・注意報: <a href="https://www.jma.go.jp/bosai/warning/" target="_blank" rel="noopener">気象庁ホームページ</a>
         / 住所: 国土地理院
       </p>`;
+    preview();
     // 雨雲レーダーをすぐ開けるように、予報を出し終えてから現在地のまわりを先に読んでおく
     setTimeout(() => {
       if (window.World?.view() === "weather") window.Radar?.warm(cache.lat, cache.lon);
@@ -562,6 +563,7 @@
       $("wx-place").textContent = "天気";
       $("wx-sub").textContent = "";
       body.innerHTML = box;
+      preview();
     }
     $("wx-go").onclick = () => refresh(true);
   }
@@ -606,9 +608,10 @@
     message("ask");
   }
 
-  // 雨雲レーダー (radar.js) は、分かっていれば現在地を真ん中にして開く
-  $("wx-radar-btn").onclick = () => window.Radar?.open(cache?.lat, cache?.lon);
-  $("wx-radar-btn").addEventListener("pointerdown", () => window.Radar?.warm(cache?.lat, cache?.lon)); // 指が触れたら読み始める
+  // 一番上の小さな雨雲レーダー (radar.js)。現在地が分かればそのまわり、分からなければ日本全体。押すと全画面で開く
+  const preview = () => window.Radar?.preview($("wx-radar-pv"), cache?.lat, cache?.lon);
+  $("wx-radar-pv").onclick = () => window.Radar?.open(cache?.lat, cache?.lon);
+  $("wx-radar-pv").addEventListener("pointerdown", () => window.Radar?.warm(cache?.lat, cache?.lon)); // 指が触れたら読み始める
 
   document.addEventListener("viewchange", (e) => {
     if (e.detail === "weather") onShow();
@@ -618,5 +621,5 @@
   });
   if (window.World?.view() === "weather") onShow();
 
-  window.Weather = { refresh: () => refresh(true) };
+  window.Weather = { refresh: () => refresh(true), preview };
 })();

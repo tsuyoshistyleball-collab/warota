@@ -1576,25 +1576,30 @@ html[data-view="weather"] body { background: var(--surface); }
 }
 .wx-head { display: flex; align-items: flex-start; gap: 12px; padding: calc(14px + env(safe-area-inset-top)) 6px 12px; }
 .wx-head-main { flex: 1; min-width: 0; }
-.wx-radar-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  padding: 9px 14px 9px 11px;
+/* 一番上の小さな雨雲レーダー: 今の雨雲と現在地。押すと全画面 (radar.js) */
+.wx-radar-pv {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 190px;
+  margin: 0 0 10px;
+  padding: 0;
   border: 0;
-  border-radius: 999px;
-  background: var(--card);
+  border-radius: 20px;
+  overflow: hidden;
+  background: #dfe5ea;
   box-shadow: var(--shadow-sm);
-  color: var(--accent-ink);
+  color: inherit;
   font: inherit;
-  font-size: 13.5px;
-  font-weight: 800;
+  text-align: left;
   cursor: pointer;
 }
-.wx-radar-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.wx-radar-btn:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.wx-radar-pv:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.rdp-tag, .rdp-open, .rdp-attr { position: absolute; background: rgba(255, 255, 255, .94); }
+.rdp-tag { top: 10px; left: 10px; padding: 5px 10px; border-radius: 10px; box-shadow: var(--shadow-sm); font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
+.rdp-tag b { margin-right: 4px; color: var(--fg); font-weight: 800; }
+.rdp-open { right: 10px; bottom: 10px; padding: 5px 11px; border-radius: 999px; box-shadow: var(--shadow-sm); font-size: 12px; font-weight: 800; color: var(--accent-ink); }
+.rdp-attr { left: 0; bottom: 0; padding: 1px 6px; border-top-right-radius: 6px; font-size: 9.5px; color: var(--fg-dim); }
 .wx-eyebrow {
   display: flex;
   align-items: center;
@@ -1839,7 +1844,8 @@ html[data-view="weather"] body { background: var(--surface); }
     padding-left: 16px;
     padding-right: 16px;
   }
-  .wx-head, .wx-top, .wx-credit, .wx-loading, .wx-body > .wx-msg { grid-column: 1 / -1; }
+  .wx-head, .wx-radar-pv, .wx-top, .wx-credit, .wx-loading, .wx-body > .wx-msg { grid-column: 1 / -1; }
+  .wx-radar-pv { height: 240px; margin: 0; }
   .wx-head { margin-bottom: -10px; }
   .wx-body { display: contents; }
   .wx-colL { grid-column: 1; }

@@ -120,12 +120,9 @@
       <h1 id="wx-place">天気</h1>
       <p id="wx-sub" class="wx-sub"></p>
     </div>
-    <!-- 雨雲レーダー (radar.js) を全画面で開く -->
-    <button type="button" id="wx-radar-btn" class="wx-radar-btn">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 15h9.6a3.6 3.6 0 0 0 .3-7.2 5.2 5.2 0 0 0-9.9 1.3A3 3 0 0 0 7 15z"/><path d="M8.6 18l-1.1 2.4M12.6 18l-1.1 2.4M16.6 18l-1.1 2.4"/></svg>
-      雨雲レーダー
-    </button>
   </header>
+  <!-- 一番上の小さな雨雲レーダー (中身は radar.js が作る)。押すと全画面で開く -->
+  <button type="button" id="wx-radar-pv" class="wx-radar-pv" aria-label="雨雲レーダー。押すと大きな地図で開きます"></button>
   <div id="wx-body" class="wx-body"></div>
 </section>
 
