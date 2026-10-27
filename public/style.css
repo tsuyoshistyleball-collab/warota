@@ -300,8 +300,13 @@ body.noscroll { overflow: hidden; }
   border-radius: 8px;
   margin: 6px 0;
 }
+/* 動画は横いっぱい。縦横比が分かるまで (読み込み前) は 16:9 の枠にし、縦長の動画は画面の高さの3/4まで */
 .thread video {
-  max-width: 100%;
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: auto 16 / 9;
+  max-height: 75vh;
   border-radius: 8px;
   margin: 6px 0;
   background: #000;

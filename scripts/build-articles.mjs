@@ -30,8 +30,9 @@ const MAX_HTML_CHARS = 300_000; // 1記事あたりの本文サイズ上限
 //  v15: 全サイト点検に基づく見直し。レスの集まりから本文を探す、記事タイトル・投稿日・コメント欄・
 //       宣伝リンクの除去、レスの見出しの統一 (class="ph")、<font> を文中のまま表示、YouTube 埋め込み、遅延読み込み画像 /
 //  v16: 2回目の全サイト点検。レスに見せかけた宣伝・記号付きのリンクの列・よそのリンクが混ざった一覧・共有ボタン・はてブの除去、
-//       共有ボタンの「コメントを見る」で本文を切らない、TikTok・Instagram の埋め込み、空の枠と続きすぎる改行の整理)
-const ART_VERSION = 16;
+//       共有ボタンの「コメントを見る」で本文を切らない、TikTok・Instagram の埋め込み、空の枠と続きすぎる改行の整理) /
+//  v17: ページに直接置かれた動画 (<video>。WordPress の [video] など) を、その場で再生できるプレーヤーとして残す
+const ART_VERSION = 17;
 // X(Twitter)の埋め込みツイートの画像取得に使う公開エンドポイント
 const TWEET_API = process.env.TWEET_API_BASE ?? "https://cdn.syndication.twimg.com";
 
@@ -184,6 +185,36 @@ function embedLink(node, base, budget) {
   return "";
 }
 
+// その場で再生できる動画プレーヤー (同じ動画は1回だけ)
+function videoPlayer(src, poster, budget) {
+  if (budget.media.has(src)) return "";
+  budget.media.add(src);
+  budget.used += 200;
+  const posterAttr = poster ? ` poster="${esc(poster)}"` : "";
+  return `<video controls playsinline preload="metadata"${posterAttr} src="${esc(src)}"></video>`;
+}
+
+// ページに直接置かれた <video> (WordPress の [video] など)。動画ファイルの URL は src か、中の <source>
+// (遅延読み込みは data-src)、最後に中の代わりのリンクから探す。ブラウザでそのまま再生できる mp4・webm だけ
+// (ストリーミングの m3u8 や、ページのスクリプトが作る blob: は使えない)
+function videoTag(node, base, budget) {
+  const cands = [];
+  for (const el of [node, ...node.querySelectorAll("source")]) {
+    const type = (el.getAttribute("type") ?? "").toLowerCase();
+    for (const attr of ["src", "data-src"]) {
+      const u = absUrl(el.getAttribute(attr), base);
+      if (u) cands.push({ u, type });
+    }
+  }
+  for (const a of node.querySelectorAll("a[href]")) {
+    const u = absUrl(a.getAttribute("href"), base);
+    if (u) cands.push({ u, type: "" });
+  }
+  const hit = cands.find(({ u, type }) => /^video\/(mp4|webm)/.test(type) || /\.(mp4|webm|m4v)([?#]|$)/i.test(u));
+  if (!hit) return "";
+  return videoPlayer(hit.u, absUrl(node.getAttribute("poster") || node.getAttribute("data-poster"), base), budget);
+}
+
 function videoCard(href, label, thumb, budget) {
   if (!href || budget.media.has(href)) return "";
   budget.media.add(href);
@@ -227,7 +258,7 @@ function sanitize(node, base, budget, depth = 0) {
     if (id) node.setAttribute("src", `https://www.youtube.com/embed/${id}`);
     return embedLink(node, base, budget);
   }
-  if (BLOCK_TAGS.has(tag)) return "";
+  if (BLOCK_TAGS.has(tag) && tag !== "VIDEO") return "";
   // ルート自身は除外しない (短い記事全体が消えるのを防ぐ)
   if (depth > 0) {
     const marker = `${node.getAttribute?.("class") ?? ""} ${node.getAttribute?.("id") ?? ""}`;
@@ -238,6 +269,7 @@ function sanitize(node, base, budget, depth = 0) {
     if (JUNK_RE.test(marker) && ownText.length < Math.max(1500, budget.rootLen * 0.3)) return "";
   }
 
+  if (tag === "VIDEO") return videoTag(node, base, budget);
   if (tag === "IMG") {
     const src = imgSrc(node, base);
     // 1ピクセルの計測用画像と、共有ボタン・ランキングのバナーの画像は出さない
@@ -272,14 +304,7 @@ function sanitize(node, base, budget, depth = 0) {
     if (href && (SHARE_LINK_RE.test(href) || budget.media.has(href))) return "";
     // 動画ファイルへの直リンクはその場で再生できるプレーヤーに変換する
     // (video.twimg.com などはリンクとして開くと403になるため)
-    if (href && /\.(mp4|webm)([?#]|$)/i.test(href)) {
-      if (budget.media.has(href)) return "";
-      budget.media.add(href);
-      budget.used += 200;
-      const poster = absUrl(node.getAttribute("data-poster"), base);
-      const posterAttr = poster ? ` poster="${esc(poster)}"` : "";
-      return `<video controls playsinline preload="metadata"${posterAttr} src="${esc(href)}"></video>`;
-    }
+    if (href && /\.(mp4|webm)([?#]|$)/i.test(href)) return videoPlayer(href, absUrl(node.getAttribute("data-poster"), base), budget);
     // 画像ファイルへの直リンク (i.imgur.com/xxx.jpg 等) はその場で画像表示する
     if (href && /\.(jpe?g|png|gif|webp)([?#]|$)/i.test(href)) {
       if (budget.media.has(href)) return "";

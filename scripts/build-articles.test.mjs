@@ -229,6 +229,27 @@ test("はちま起稿・パンドラの憂鬱: 前後の記事への案内・関
   assert.ok(pandora.includes("海外の反応の本文です") && !pandora.includes("関連記事のタイトル") && !pandora.includes("皆様の応援"), pandora.slice(-100));
 });
 
+test("ガジェット2ch: WordPress の動画 ([video]) は、その場で再生できるプレーヤーにする", { skip }, async () => {
+  const mp4 = "https://www.gadget2ch.com/wp-content/uploads/2026/10/rEl0FBzK.mp4";
+  const html = await run(
+    `<div class="article-body-inner">${posts(3)}
+      <div class="t_h">4: それでも動く名無し 2026/10/27(火) 10:29:55.34 ID:7Uo57hsS0</div>
+      <div class="t_b" style="font-size: 24px; color: #800080;"><div style="width: 1164px;" class="wp-video"><video class="wp-video-shortcode" id="video-281547-1" width="1164" height="655" preload="metadata" controls="controls"><source type="video/mp4" src="${mp4}?_=1"/><a href="${mp4}">${mp4}</a></video></div><br/>これが一発で出て来る模様</div>
+      <video controls src="/media/clip.webm" poster="/media/clip.jpg"></video>
+      <video controls><source type="application/x-mpegURL" src="https://example.com/live.m3u8"></video></div>`,
+    "【朗報】ゲーム生成AI、お前らが思ってる一億倍凄い",
+    "https://www.gadget2ch.com/archives/post-281547.html",
+  );
+  // <source> の mp4 を1回だけ (中の代わりのリンクを重ねて出さない)。枠の幅 1164px は持ち込まない
+  assert.equal(html.split("<video").length - 1, 2);
+  assert.ok(html.includes(`<video controls playsinline preload="metadata" src="${mp4}?_=1"></video>`));
+  assert.ok(!html.includes(`href="${mp4}"`) && !html.includes("1164px"));
+  assert.ok(html.includes("これが一発で出て来る模様"));
+  // src 属性の動画は相対 URL を直し、ポスター画像も付ける。再生できない m3u8 は出さない
+  assert.ok(html.includes('poster="https://www.gadget2ch.com/media/clip.jpg" src="https://www.gadget2ch.com/media/clip.webm"'));
+  assert.ok(!html.includes("m3u8"));
+});
+
 test("TikTok・Instagram の埋め込みは元のサイトで見るリンクに、imgur は画像だけに", { skip }, async () => {
   const html = await run(
     `<div class="article-body-inner"><p>${"本文の文章です。".repeat(20)}</p>
