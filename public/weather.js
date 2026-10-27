@@ -308,16 +308,14 @@
     const night = cur.is_day === 0;
     const wear = wearOf(fc);
 
-    // 上に警報と1時間ごと (広い画面では横いっぱい)、その下に今の天気・今日と明日と、週間予報 (広い画面では左右に並べる)
+    // 狭い画面では上から 警報・1時間ごと・今の天気・今日と明日・週間予報。
+    // 広い画面では、左に警報と今の天気・右に雨雲レーダー、その下に横いっぱいの1時間ごと、さらに下に今日と明日・週間予報 (style.css)
     body.innerHTML = `
-      <div class="wx-top">
-      ${warnHTML(warn, p)}
+      <div class="wx-alerts">${warnHTML(warn, p)}</div>
       <section class="wx-card wx-hourly" aria-labelledby="wx-hourly-h">
         <h2 id="wx-hourly-h" class="wx-h">1時間ごと</h2>
         ${WIDE_HOURS.matches ? hourlyDaysHTML(fc) : hourlyHTML(fc)}
       </section>
-      </div>
-      <div class="wx-colL">
       <section class="wx-now wx-card" aria-label="今の天気">
         <div class="wx-now-main">
           ${icon(curKind, night)}
@@ -337,13 +335,10 @@
         </dl>
       </section>
       <div class="wx-days">${[0, 1].map((i) => dayCard(d, i, i === 0 ? "今日" : "明日")).join("")}</div>
-      </div>
-      <div class="wx-colR">
       <section class="wx-card wx-week" aria-labelledby="wx-week-h">
         <h2 id="wx-week-h" class="wx-h">週間予報</h2>
         ${weekHTML(d, cur.temperature_2m)}
       </section>
-      </div>
       <p class="wx-credit">
         予報: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
         (気象庁などのデータ) / 警報・注意報: <a href="https://www.jma.go.jp/bosai/warning/" target="_blank" rel="noopener">気象庁ホームページ</a>
@@ -556,13 +551,13 @@
     const box = `<section class="wx-card wx-msg"><h2 class="wx-h">${texts[0]}</h2><p>${esc(texts[1])}</p>
       <button type="button" class="wx-btn" id="wx-go">${texts[2]}</button></section>`;
     if (keep) {
-      // 前に取れた天気は残して、上にお知らせを出す
+      // 前に取れた天気は残して、警報の上にお知らせを出す
       body.querySelector(".wx-msg")?.remove();
-      body.insertAdjacentHTML("afterbegin", box);
+      body.querySelector(".wx-alerts").insertAdjacentHTML("afterbegin", box);
     } else {
       $("wx-place").textContent = "天気";
       $("wx-sub").textContent = "";
-      body.innerHTML = box;
+      body.innerHTML = `<div class="wx-alerts">${box}</div>`;
       preview();
     }
     $("wx-go").onclick = () => refresh(true);
@@ -574,7 +569,7 @@
     if (busy) return;
     busy = true;
     body.classList.add("loading");
-    if (!cache?.fc) body.innerHTML = '<p class="wx-loading">現在地の天気を調べています…</p>';
+    if (!cache?.fc) body.innerHTML = '<div class="wx-alerts"><p class="wx-loading">現在地の天気を調べています…</p></div>';
     try {
       const pos = await position();
       const [fc, p] = await Promise.all([forecast(pos.lat, pos.lon), place(pos.lat, pos.lon).catch(() => null)]);
