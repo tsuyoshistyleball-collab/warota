@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.13.2";
+const APP_VERSION = "2.14.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
@@ -491,7 +491,7 @@ $("btn-clear-read").onclick = () => {
   };
 
   window.addEventListener("touchstart", (e) => {
-    const onSettings = window.World?.view() === "settings"; // 設定の画面には更新するものがない
+    const onSettings = ["settings", "tenants"].includes(window.World?.view()); // 設定と物件の画面には更新するものがない
     if (busy || e.touches.length > 1 || onSettings || !atTop(e.target) || readerOpen || window.World?.overlayOpen()) {
       startY = null;
       return;

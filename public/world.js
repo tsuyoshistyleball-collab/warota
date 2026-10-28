@@ -2,7 +2,7 @@
 
 // 世界地図から地域別の話題ニュースを見る「ワールド」画面。
 // world-map.json (地図の形・ラベル位置・拡大範囲) と world.json (地域ごとの話題TOP10) を表示する。
-// 画面の切り替えは URL のハッシュで行う: #/world → #/world/<地域> → #/world/<地域>/<記事ID>、#/matome、#/weather、#/settings
+// 画面の切り替えは URL のハッシュで行う: #/world → #/world/<地域> → #/world/<地域>/<記事ID>、#/matome、#/weather、#/tenants、#/settings
 (() => {
   const $ = (id) => document.getElementById(id);
   const SVG_NS = "http://www.w3.org/2000/svg";
@@ -38,8 +38,9 @@
     minus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg>',
   };
 
-  const TAB_ORDER = ["world", "matome", "weather", "settings"]; // 下のタブの並び (左から)
-  const VIEW_IDS = { world: "view-world", matome: "view-matome", weather: "view-weather", settings: "view-settings" }; // タブごとの画面
+  const TAB_ORDER = ["world", "matome", "weather", "tenants", "settings"]; // 下のタブの並び (左から)
+  // タブごとの画面
+  const VIEW_IDS = { world: "view-world", matome: "view-matome", weather: "view-weather", tenants: "view-tenants", settings: "view-settings" };
   const wide = matchMedia("(min-width: 600px)");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -730,13 +731,13 @@
 
   function parseHash(hash = location.hash) {
     const parts = decodeURIComponent(hash.replace(/^#\/?/, "")).split("/");
-    if (["matome", "weather", "settings"].includes(parts[0])) return { view: parts[0], region: null, article: null };
+    if (["matome", "weather", "tenants", "settings"].includes(parts[0])) return { view: parts[0], region: null, article: null };
     const region = REGION_ORDER.includes(parts[1]) ? parts[1] : null;
     return { view: "world", region, article: region ? parts[2] || null : null };
   }
 
   // 画面ごとのスクロール位置 (どのタブも同じページのスクロールを使うので、切り替えるときに覚えておく)
-  const scrollPos = { world: 0, matome: 0, weather: 0, settings: 0 };
+  const scrollPos = { world: 0, matome: 0, weather: 0, tenants: 0, settings: 0 };
   let shownView = null;
 
   function showView() {
@@ -1135,7 +1136,7 @@
 
   // まとめ画面 (app.js) からも使う
   window.World = {
-    view: () => route.view, // 表示中のタブ ("world" / "matome" / "weather" / "settings")
+    view: () => route.view, // 表示中のタブ ("world" / "matome" / "weather" / "tenants" / "settings")
     isActive: () => route.view === "world",
     // 地域や記事の画面が全面に重なっている (引っ張って更新を効かせない)
     overlayOpen: () => document.body.classList.contains("w-overlay"),

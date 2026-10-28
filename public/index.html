@@ -126,6 +126,16 @@
   <div id="wx-body" class="wx-body"></div>
 </section>
 
+<!-- 物件 (中身は tenants.js が作る) -->
+<section id="view-tenants" aria-labelledby="tn-title" hidden>
+  <header class="tn-head">
+    <p class="tn-eyebrow">物件をさがす</p>
+    <h1 id="tn-title">テナント・貸店舗・貸倉庫</h1>
+    <p class="tn-sub">草加・獨協大学前・新田・蒲生・新越谷・南越谷の近く</p>
+  </header>
+  <div id="tn-body" class="tn-body"></div>
+</section>
+
 <section id="view-settings" aria-labelledby="s-title" hidden>
   <header class="s-head">
     <h1 id="s-title">設定</h1>
@@ -392,6 +402,10 @@
     <span class="tab-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8.6" cy="8.4" r="3.1"/><path d="M8.6 2.4v1.3M3.4 4.6l.9.9M2.6 8.4h1.3M13.8 4.6l-.9.9"/><path d="M8.4 20.5h9.4a3.6 3.6 0 0 0 .3-7.2 5.2 5.2 0 0 0-9.8 1.1 3.1 3.1 0 0 0 .1 6.1z"/></svg></span>
     <span>天気</span>
   </a>
+  <a href="#/tenants" data-tab="tenants">
+    <span class="tab-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 10.5V20h15v-9.5"/><path d="M3 9.6 4.8 4.5h14.4L21 9.6a2.6 2.6 0 0 1-4.5 1.6 2.6 2.6 0 0 1-4.5 0 2.6 2.6 0 0 1-4.5 0A2.6 2.6 0 0 1 3 9.6z"/><path d="M10 20v-5h4v5"/></svg></span>
+    <span>物件</span>
+  </a>
   <a href="#/settings" data-tab="settings">
     <span class="tab-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.44 5.49L10.67 3.1L13.33 3.1L13.56 5.49A6.7 6.7 0 0 1 15.5 6.29L17.35 4.77L19.23 6.65L17.71 8.5A6.7 6.7 0 0 1 18.51 10.44L20.9 10.67L20.9 13.33L18.51 13.56A6.7 6.7 0 0 1 17.71 15.5L19.23 17.35L17.35 19.23L15.5 17.71A6.7 6.7 0 0 1 13.56 18.51L13.33 20.9L10.67 20.9L10.44 18.51A6.7 6.7 0 0 1 8.5 17.71L6.65 19.23L4.77 17.35L6.29 15.5A6.7 6.7 0 0 1 5.49 13.56L3.1 13.33L3.1 10.67L5.49 10.44A6.7 6.7 0 0 1 6.29 8.5L4.77 6.65L6.65 4.77L8.5 6.29A6.7 6.7 0 0 1 10.44 5.49Z"/><circle cx="12" cy="12" r="2.6"/></svg></span>
     <span>設定</span>
@@ -426,5 +440,6 @@
 <script src="./world.js"></script>
 <script src="./weather.js"></script>
 <script src="./radar.js"></script>
+<script src="./tenants.js"></script>
 </body>
 </html>

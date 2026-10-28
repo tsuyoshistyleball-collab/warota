@@ -1,4 +1,4 @@
-const CACHE = "warota-v21";
+const CACHE = "warota-v22";
 const SHELL = [
   "./",
   "./index.html",
@@ -8,6 +8,7 @@ const SHELL = [
   "./world.js",
   "./weather.js",
   "./radar.js",
+  "./tenants.js",
   "./world-map.json",
   "./manifest.webmanifest",
   "./icon-192.png",

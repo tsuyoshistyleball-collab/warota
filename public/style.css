@@ -1868,6 +1868,58 @@ html[data-view="weather"] body { background: var(--surface); }
   .wx-credit { grid-area: credit; }
 }
 
+/* ===== 物件 (tenants.js) =====
+   駅ごとのカードに、店舗・事務所・倉庫の検索結果を開くボタン。広い画面ではカードを2列に */
+html[data-view="tenants"] body { background: var(--surface); }
+#view-tenants { padding: 0 12px calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom)); }
+.tn-head { padding: calc(14px + env(safe-area-inset-top)) 6px 12px; }
+.tn-eyebrow { margin: 0; font-size: 12px; font-weight: 700; color: var(--fg-dim); }
+#tn-title { margin: 2px 0 0; font-size: 23px; font-weight: 800; line-height: 1.25; text-wrap: balance; }
+.tn-sub { margin: 3px 0 0; font-size: 12.5px; color: var(--fg-dim); }
+.tn-body { display: flex; flex-direction: column; gap: 10px; }
+.tn-card { border-radius: 20px; background: var(--card); box-shadow: var(--shadow-sm); padding: 14px 16px; }
+.tn-intro p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+.tn-sort { margin: 0; padding: 0; border: 0; }
+.tn-sort legend { margin-bottom: 6px; padding: 0; font-size: 12px; font-weight: 700; color: var(--fg-dim); }
+.tn-sort .seg span { min-height: 40px; font-size: 13.5px; }
+.tn-h { margin: 8px 6px 0; font-size: 15px; font-weight: 800; }
+.tn-h small { margin-left: 4px; font-size: 12px; font-weight: 700; color: var(--accent-ink); }
+.tn-list { display: grid; gap: 10px; }
+.tn-st { display: flex; flex-direction: column; gap: 10px; }
+.tn-st-name h3 { margin: 0; font-size: 19px; font-weight: 800; line-height: 1.3; }
+.tn-st-name h3 small { margin-left: 2px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.tn-st-name p { margin: 2px 0 0; font-size: 12px; color: var(--fg-dim); }
+.tn-btns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tn-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 62px;
+  padding: 8px 4px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg);
+  font-size: 13.5px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.tn-btn svg { width: 24px; height: 24px; fill: none; stroke: var(--accent-ink); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tn-btn:active { background: var(--line); }
+.tn-btn:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.tn-tips .tn-h { margin: 0; font-size: 14px; }
+.tn-tips ul { margin: 6px 0 0; padding-left: 1.2em; font-size: 13px; line-height: 1.65; color: var(--ink-2); }
+.tn-tips li + li { margin-top: 4px; }
+@media (min-width: 600px) {
+  #view-tenants { max-width: 1100px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+  .tn-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
+}
+
 /* ===== 雨雲レーダー (全画面。radar.js) =====
    地図の上に、左上に時刻、右上に拡大・縮小、下に再生と時刻のつまみ・雨の強さの色 */
 .rd {
