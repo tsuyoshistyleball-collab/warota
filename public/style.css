@@ -2046,10 +2046,9 @@ html[data-view="tenants"] body { background: var(--surface); }
 .rd-track { flex: 1; min-width: 0; }
 .rd-slider { display: block; width: 100%; height: 30px; margin: 0; accent-color: var(--accent-ink); }
 .rd-ticks { position: relative; height: 16px; font-size: 11px; color: var(--fg-dim); }
+/* 目盛りは時刻の位置に置き、両端の文字がはみ出さないように位置の割合だけ左へずらす */
 .rd-ticks span { position: absolute; top: 0; white-space: nowrap; }
-.rd-ticks span:first-child { left: 0; }
-.rd-ticks span:last-child { right: 0; }
-.rd-tick-now { left: 50%; transform: translateX(-50%); font-weight: 800; color: var(--fg); }
+.rd-ticks .now { font-weight: 800; color: var(--fg); }
 .rd-legend { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; }
 .rd-legend-scale { flex: 1; }
 .rd-legend-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .1); }
@@ -2057,6 +2056,7 @@ html[data-view="tenants"] body { background: var(--surface); }
 .rd-legend-nums { position: relative; display: block; height: 15px; font-size: 10.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
 .rd-legend-nums span { position: absolute; top: 2px; transform: translateX(-50%); }
 .rd-legend-unit { margin-top: -3px; font-size: 10.5px; color: var(--fg-dim); white-space: nowrap; }
+.rd-note { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--accent-ink); }
 .rd-attr { margin: 4px 0 0; font-size: 10.5px; color: var(--fg-dim); }
 .rd-attr a { color: inherit; }
 

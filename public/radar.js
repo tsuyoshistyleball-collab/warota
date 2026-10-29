@@ -1,7 +1,8 @@
 "use strict";
 
 // 雨雲レーダー: 気象庁の「雨雲の動き」(高解像度降水ナウキャスト) を国土地理院の地図に重ねて、全画面で見せる。
-// 1時間前から1時間後まで5分ごと。指で動かす・2本指で拡大縮小・再生ができ、戻る操作で閉じる。
+// 1時間前から1時間後まで5分ごと、その先は「今後の雨」(降水短時間予報) で15時間後ごろまで1時間ごと。
+// 指で動かす・2本指で拡大縮小・再生ができ、戻る操作で閉じる。
 // 左上のアナログ時計は、表示中の雨雲の時刻を指す。
 // すぐに見せるため、天気のタブを開いたときに時刻の一覧と現在地のまわりの画像を先に読んでおく (warm)
 (() => {
@@ -10,10 +11,16 @@
   const MAX_Z = 12;
   const HOME_Z = 9; // 現在地のまわり約100km
   const JMA = "https://www.jma.go.jp/bosai/jmatile/data/nowc/";
+  const RASRF = "https://www.jma.go.jp/bosai/jmatile/data/rasrf/";
   const baseUrl = (z, x, y) => `https://cyberjapandata.gsi.go.jp/xyz/pale/${z}/${x}/${y}.png`;
-  const rainUrl = (f, z, x, y) => `${JMA}${f.basetime}/none/${f.validtime}/surf/hrpns/${z}/${x}/${y}.png`;
-  // 雨雲の画像は倍率 4・6・8・10 にだけあるので、間の倍率では1つ下の画像を2倍に伸ばして使う
-  const rainZoom = (z) => Math.min(10, Math.max(4, z - (z % 2)));
+  // 時刻ごとの雨雲の画像。1時間より先 (kind: "hour") は降水短時間予報の画像 (1時間に降る雨の量)
+  const rainUrl = (f, z, x, y) =>
+    f.kind === "hour"
+      ? `${RASRF}${f.basetime}/${f.member}/${f.validtime}/surf/rasrf/${z}/${x}/${y}.png`
+      : `${JMA}${f.basetime}/none/${f.validtime}/surf/hrpns/${z}/${x}/${y}.png`;
+  // 雨雲の画像は倍率 4・6・8・10 にだけあるので、間の倍率では1つ下の画像を2倍に伸ばして使う。
+  // 降水短時間予報は粗く、6時間先までは倍率8、その先は6まで (それより拡大すると伸ばして使う)
+  const rainZoom = (z, f) => Math.min(f?.maxZ ?? 10, Math.max(4, z - (z % 2)));
   // 地図を動かせる範囲 (日本のまわり)
   const BOUNDS = { n: 47, s: 20, w: 122, e: 154 };
   // 雨の強さの色 (気象庁と同じ)。数字は色の境目 (1時間あたりの mm)
@@ -49,6 +56,7 @@
   let frames = []; // 時刻の一覧 [{ basetime, validtime, time }] (古い順)
   let nowFrame = 0; // 一番新しい実況 (今)
   let frame = 0; // 表示中の時刻
+  let lastNowcast = 0; // 5分ごとの最後 (1時間後)。この先は1時間ごと
   let framesAt = 0; // 時刻の一覧を取ったとき
   let framesReq = null; // 取りに行っている途中の一覧
   let warmedAt = 0;
@@ -102,8 +110,8 @@
         <div class="rd-row">
           <button type="button" class="rd-btn rd-play" aria-label="再生">${ICON.play}</button>
           <div class="rd-track">
-            <input class="rd-slider" type="range" min="0" max="0" value="0" aria-label="時刻 (左が1時間前、右が1時間後)">
-            <div class="rd-ticks" aria-hidden="true"><span>1時間前</span><span class="rd-tick-now">今</span><span>1時間後</span></div>
+            <input class="rd-slider" type="range" min="0" max="0" value="0" aria-label="時刻 (左が1時間前、右が先の予報)">
+            <div class="rd-ticks" aria-hidden="true"></div>
           </div>
         </div>
         <div class="rd-legend" role="img" aria-label="雨の強さの色: 薄い水色は1時間に1mm未満、青は10〜20mm、黄色は20〜30mm、赤は50〜80mm、紫は80mm以上">
@@ -113,13 +121,14 @@
           </div>
           <span class="rd-legend-unit">mm/時</span>
         </div>
+        <p class="rd-note" hidden>1時間より先は、1時間に降る雨の量の予報です (気象庁「今後の雨」。拡大するとぼやけます)</p>
         <p class="rd-attr">雨雲: <a href="https://www.jma.go.jp/bosai/nowc/" target="_blank" rel="noopener">気象庁</a>
           / 地図: <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a></p>
       </footer>`;
     document.body.append(root);
     for (const [k, sel] of Object.entries({
       map: ".rd-map", pane: ".rd-pane", me: ".rd-me", time: ".rd-time", slider: ".rd-slider", play: ".rd-play",
-      msg: ".rd-msg", now: ".rd-tick-now", close: ".rd-close", clock: ".rd-clock", hand: ".rd-clock-h", minute: ".rd-clock-m",
+      msg: ".rd-msg", ticks: ".rd-ticks", note: ".rd-note", close: ".rd-close", clock: ".rd-clock", hand: ".rd-clock-h", minute: ".rd-clock-m",
     })) {
       els[k] = root.querySelector(sel);
     }
@@ -225,13 +234,16 @@
   function fetchFrames() {
     if (frames.length && Date.now() - framesAt < FRESH_MS) return Promise.resolve();
     framesReq ??= (async () => {
-      const [past, ahead] = await Promise.all(
-        ["N1", "N2"].map(async (n) => {
-          const res = await fetch(`${JMA}targetTimes_${n}.json`);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return (await res.json()).filter((t) => t.elements?.includes("hrpns"));
-        }),
-      );
+      const list = async (url, element) => {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return (await res.json()).filter((t) => t.elements?.includes(element));
+      };
+      const [past, ahead, later] = await Promise.all([
+        list(`${JMA}targetTimes_N1.json`, "hrpns"),
+        list(`${JMA}targetTimes_N2.json`, "hrpns"),
+        list(`${RASRF}targetTimes.json`, "rasrf").catch(() => []), // 取れなくても1時間先までは見せる
+      ]);
       const byTime = (a, b) => a.validtime.localeCompare(b.validtime);
       const seen = past.sort(byTime).slice(-13); // 1時間前〜今 (5分ごと)
       const latest = seen.at(-1);
@@ -239,8 +251,21 @@
       // 予報は、一番新しい実況から先の1時間 (同じ時刻に作られたもの)
       const base = ahead.reduce((m, t) => (t.basetime > m ? t.basetime : m), "");
       const next = ahead.filter((t) => t.basetime === base && t.validtime > latest.validtime).sort(byTime).slice(0, 12);
-      frames = [...seen, ...next].map((t) => ({ basetime: t.basetime, validtime: t.validtime, time: timeOf(t.validtime) }));
+      const nowcast = [...seen, ...next].map((t) => ({ kind: "now", basetime: t.basetime, validtime: t.validtime }));
+      // その先は降水短時間予報: ちょうどの時刻 (毎時0分) ごとに、一番新しく作られたもの。
+      // 6時間先までは10分ごとに作られる速報 (immed)、その先は1時間ごとに作られるもの (none)
+      const end = nowcast.at(-1).validtime;
+      const hourly = new Map();
+      for (const t of later) {
+        if (t.validtime <= end || t.validtime.slice(10, 12) !== "00") continue;
+        if (!(hourly.get(t.validtime)?.basetime >= t.basetime)) hourly.set(t.validtime, t);
+      }
+      const hours = [...hourly.values()].sort(byTime).map((t) => ({
+        kind: "hour", basetime: t.basetime, validtime: t.validtime, member: t.member, maxZ: t.member === "immed" ? 8 : 6,
+      }));
+      frames = [...nowcast, ...hours].map((f) => ({ ...f, time: timeOf(f.validtime) }));
       nowFrame = seen.length - 1;
+      lastNowcast = nowcast.length - 1;
       framesAt = Date.now();
     })().finally(() => {
       framesReq = null;
@@ -261,8 +286,19 @@
     if (!root.hidden) applyFrames(keep);
   }
   function applyFrames(keep) {
-    els.slider.max = String(frames.length - 1);
-    els.now.style.left = `${((nowFrame / Math.max(1, frames.length - 1)) * 100).toFixed(1)}%`;
+    const last = frames.length - 1;
+    els.slider.max = String(last);
+    // つまみの下の目盛り: 1時間前・今・1時間後 (1時間ごとの予報があるときだけ)・一番先
+    const ticks = [[0, "1時間前"], [nowFrame, "今"]];
+    if (lastNowcast < last) ticks.push([lastNowcast, "1時間後"]);
+    ticks.push([last, ahead(frames[last])]);
+    els.ticks.innerHTML = ticks
+      .map(([i, label]) => {
+        const p = ((i / Math.max(1, last)) * 100).toFixed(1);
+        return `<span${i === nowFrame ? ' class="now"' : ""} style="left:${p}%;transform:translateX(-${p}%)">${label}</span>`;
+      })
+      .join("");
+    els.slider.setAttribute("aria-label", `時刻 (左が1時間前、右が${ahead(frames[last])})`);
     els.msg.hidden = true;
     // 見ていた時刻がまだ一覧にあればそのまま、なければ「今」
     const again = keep ? frames.findIndex((f) => f.validtime === keep) : -1;
@@ -276,12 +312,21 @@
     els.slider.value = String(i);
     const mins = Math.round((f.time - frames[nowFrame].time) / 60000);
     const kind = mins > 0 ? "予報" : "実況";
-    const rel = mins === 0 ? "今" : mins < 0 ? `${-mins}分前` : `${mins}分後`;
+    const rel = mins === 0 ? "今" : mins < 0 ? `${span(-mins)}前` : `${span(mins)}後`;
+    els.note.hidden = f.kind !== "hour";
     els.time.innerHTML = `<b>${hhmm(f.time)}</b> <span class="rd-kind${mins > 0 ? " ahead" : ""}">${kind}</span> ${rel}`;
     els.slider.setAttribute("aria-valuetext", `${hhmm(f.time)} ${kind} ${rel}`);
     setClock(mins, mins > 0);
     drawRain();
   }
+
+  // 「1時間40分」のような長さ
+  const span = (mins) => (mins < 60 ? `${mins}分` : `${Math.floor(mins / 60)}時間${mins % 60 ? `${mins % 60}分` : ""}`);
+  // 今から何時間後か (つまみの目盛り用。ちょうどでなければ近い時間)
+  const ahead = (f) => {
+    const mins = Math.round((f.time - frames[nowFrame].time) / 60000);
+    return mins < 90 ? `${span(mins)}後` : `${Math.round(mins / 60)}時間後`;
+  };
 
   // アナログ時計: 「今」の時刻から mins 分ずらした時刻を指す。針は5分ずつなめらかに回し、
   // 大きく飛ぶとき (最後から最初へ戻るなど) はすぐに切り替える。予報の間は長針をオレンジに
@@ -316,8 +361,8 @@
     await Promise.race([preload(next), wait(2000)]);
     if (token !== playToken) return;
     setFrame(next);
-    // 「今」と最後の時刻では少し長く止める
-    await wait(next === frames.length - 1 ? 1500 : next === nowFrame ? 1000 : 450);
+    // 「今」と最後の時刻では少し長く止める。1時間ごとの予報は5分ごとより少しゆっくり
+    await wait(next === frames.length - 1 ? 1500 : next === nowFrame ? 1000 : frames[next].kind === "hour" ? 800 : 450);
     if (token === playToken) step(token);
   }
   // 画像を先に読んでおく (読み終わるか失敗したら終わる)。地図の画像はサービスワーカーにも残す (CORS で読む)
@@ -336,7 +381,7 @@
   }
   function preload(i) {
     const f = frames[i];
-    const z = rainZoom(view.z);
+    const z = rainZoom(view.z, f);
     return Promise.all(tilesInView(z).map(({ tx, ty }) => fetchImage(rainUrl(f, z, tx, ty))));
   }
   // 開いたあと、再生がつかえないように残りの時刻も順に読んでおく (「今」の次から)
@@ -413,7 +458,7 @@
   }
   function drawRain() {
     const f = frames[frame];
-    place(layers.rain, rainZoom(view.z), (z, x, y) => f && rainUrl(f, z, x, y));
+    place(layers.rain, rainZoom(view.z, f), (z, x, y) => f && rainUrl(f, z, x, y));
   }
   function draw() {
     place(layers.base, view.z, baseUrl, true);

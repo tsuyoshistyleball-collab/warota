@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "2.14.1";
+const APP_VERSION = "2.15.0";
 
 const $ = (id) => document.getElementById(id);
 const listEl = $("list");
