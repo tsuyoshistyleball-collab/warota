@@ -694,6 +694,8 @@
             h("span", { class: "cta-icon", html: ICONS.external }),
           )
         : null,
+      // AIに質問 (中身は ask.js が作る)
+      window.Ask ? h("section", { class: "ask", "aria-labelledby": "ask-h" }) : null,
       it.coverage?.length
         ? h(
             "section",
@@ -723,6 +725,8 @@
           )
         : null,
     );
+    const ask = box.querySelector(".ask");
+    if (ask) window.Ask.mount(ask, { item: it, region: r, rank: index + 1 });
     $("av-share").hidden = !navigator.share || !url;
     $("av-share").onclick = () => navigator.share?.({ title: it.title, url }).catch(() => {});
   }

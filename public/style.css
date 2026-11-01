@@ -1568,6 +1568,237 @@ html[data-view="world"] body { background: var(--surface); }
   color: var(--fg-dim);
 }
 
+/* ===== 記事の「AIに質問」 (ask.js) ===== */
+.ask {
+  margin: 14px 14px 0;
+  padding: 16px 14px 14px;
+  border-radius: 20px;
+  background: var(--surface);
+}
+.ask-h {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: var(--ink-2);
+}
+.ask-icon { display: grid; }
+.ask-icon svg { width: 17px; height: 17px; fill: var(--heat-4); }
+.ask-lead { margin: 6px 0 0; font-size: 13px; line-height: 1.65; color: var(--fg-dim); }
+
+/* キーがまだないとき */
+.ask-setup {
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.ask-setup > p:first-child { margin: 0 0 12px; font-size: 14px; line-height: 1.7; }
+.ask-setup b { display: block; }
+.ask-small { margin: 10px 0 0; font-size: 11.5px; line-height: 1.6; color: var(--fg-dim); }
+.ask-setup.pulse { animation: ask-pulse 1s var(--ease); }
+@keyframes ask-pulse {
+  0%, 60% { box-shadow: inset 0 0 0 2px var(--accent-ink); }
+  100% { box-shadow: inset 0 0 0 1px var(--line); }
+}
+.ask-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ask-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ask-btn.primary { background: var(--fg); box-shadow: none; color: #fff; }
+.ask-btn:active { transform: scale(.98); }
+
+/* 質問と答え */
+.ask-log { display: grid; gap: 18px; margin-top: 14px; }
+.ask-log:empty { display: none; }
+.ask-turn { display: grid; gap: 8px; min-width: 0; scroll-margin-top: 12px; }
+.ask-q {
+  justify-self: end;
+  max-width: 88%;
+  margin: 0;
+  padding: 9px 14px;
+  border-radius: 18px 18px 6px 18px;
+  background: var(--fg);
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 700;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ask-a {
+  min-width: 0;
+  padding: 14px 15px 11px;
+  border-radius: 6px 18px 18px 18px;
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+.ask-md { font-size: 15.5px; line-height: 1.8; overflow-wrap: anywhere; }
+.ask-md > :first-child { margin-top: 0; }
+.ask-md > :last-child { margin-bottom: 0; }
+.ask-md p { margin: 0 0 .7em; }
+.ask-md h4 { margin: 1em 0 .35em; font-size: 15.5px; font-weight: 800; line-height: 1.5; }
+.ask-md ul, .ask-md ol { margin: 0 0 .7em; padding-left: 1.35em; }
+.ask-md li { margin: .25em 0; }
+.ask-md li::marker { color: var(--heat-4); }
+.ask-md strong { font-weight: 800; }
+.ask-md a { color: var(--accent-ink); }
+.ask-status { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; color: var(--fg-dim); }
+.ask-md:not(:empty) + .ask-status { margin-top: 10px; }
+/* 考えている間の「…」(左から1つずつ増える) */
+.ask-dots {
+  flex: none;
+  width: 22px;
+  height: 6px;
+  background: radial-gradient(circle closest-side, var(--heat-4) 96%, transparent) 0 50% / 8px 6px repeat-x;
+  animation: ask-dots 1.2s steps(4) infinite;
+}
+@keyframes ask-dots {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 -34% 0 0); }
+}
+.ask-note { margin: 8px 0 0; font-size: 12px; color: var(--fg-dim); }
+.ask-src { margin-top: 10px; font-size: 13px; }
+.ask-src summary { cursor: pointer; font-weight: 800; color: var(--accent-ink); }
+.ask-src ul { margin: 6px 0 0; padding: 0; list-style: none; }
+.ask-src li { padding: 7px 0; border-top: 1px solid var(--line); line-height: 1.5; }
+.ask-src a { color: inherit; text-decoration: none; font-weight: 700; }
+.ask-src small { display: block; font-size: 11px; color: var(--fg-dim); }
+.ask-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+.ask-stop {
+  margin-left: auto;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ask-err { background: #fff7f6; box-shadow: inset 0 0 0 1px #f4d3cf; }
+.ask-err > p:first-child { margin: 0; font-size: 14.5px; line-height: 1.7; color: #8f2a22; }
+.ask-detail { margin: 6px 0 0; font-size: 11.5px; line-height: 1.55; color: var(--fg-dim); overflow-wrap: anywhere; }
+
+/* 選ぶだけで聞ける質問 */
+.ask-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.ask-chip {
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .15s var(--ease), box-shadow .15s;
+}
+.ask-chip:active { transform: scale(.97); }
+.ask-chip.done { color: var(--fg-dim); }
+.ask-chip.done::before { content: "✓ "; color: var(--accent-ink); }
+.ask-chip:disabled { opacity: .5; cursor: default; transform: none; }
+
+/* 自由に質問する欄 */
+.ask-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 5px 5px 5px 14px;
+  border-radius: 22px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.ask-form:focus-within { box-shadow: inset 0 0 0 2px var(--accent-ink); }
+.ask-form textarea {
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  max-height: 168px;
+  margin: 0;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px; /* 16px 未満だと iPhone が入力のときに画面を拡大してしまう */
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+}
+.ask-send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--fg);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ask-send svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.ask-send:disabled { background: #c9cad1; cursor: default; }
+.ask-opts { margin-top: 12px; }
+.ask-web { display: flex; align-items: flex-start; gap: 9px; font-size: 13.5px; font-weight: 700; color: var(--ink-2); cursor: pointer; }
+.ask-web input { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--heat-4); }
+.ask-web small { display: block; margin-top: 1px; font-size: 11.5px; font-weight: 500; color: var(--fg-dim); }
+.ask-foot { margin: 12px 0 0; font-size: 11px; line-height: 1.65; color: var(--fg-dim); }
+.ask-clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.ask button:focus-visible, .ask a:focus-visible, .ask-web input:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .ask-dots { animation: none; }
+  .ask-setup.pulse { animation: none; box-shadow: inset 0 0 0 2px var(--accent-ink); }
+  .ask-chip { transition: none; }
+}
+
 /* ===== 天気 =====
    上から雨雲レーダー・警報・1時間ごと・今の天気・今日と明日・週間予報。
    広い画面では、左に警報と今の天気・右に雨雲レーダー、その下に横いっぱいの1時間ごと、さらに下に今日と明日・週間予報 */
@@ -2174,6 +2405,61 @@ html[data-view="settings"] body { background: var(--surface); }
 }
 #ng-words:focus { outline: none; background: #fff; box-shadow: inset 0 0 0 2px var(--accent-ink); }
 
+/* AIに質問 (APIキー・AIの種類) */
+.ai-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--fg-dim);
+}
+.ai-state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #c3c3cb; }
+.ai-state.on { background: #eaf6ee; color: #1d6b3a; }
+.ai-state.on::before { background: #2e9a57; }
+.ai-key-form { display: flex; gap: 8px; margin-top: 10px; }
+.ai-key-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg);
+  font: inherit;
+  font-size: 16px; /* iPhone で入力のときに拡大されないように */
+}
+.ai-key-form input:focus { outline: none; background: #fff; box-shadow: inset 0 0 0 2px var(--accent-ink); }
+.ai-save {
+  flex: none;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--fg);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ai-save:disabled { opacity: .5; cursor: default; }
+.ai-msg { margin: 8px 0 0; font-size: 12.5px; line-height: 1.6; color: #c4342b; }
+.ai-msg:empty { display: none; }
+.ai-msg.ok { color: #1d6b3a; }
+.ai-del { display: block; margin-top: 10px; padding: 0; border: 0; background: none; color: #c4342b; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.ai-help { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.7; }
+.ai-help summary { cursor: pointer; font-weight: 800; color: var(--accent-ink); }
+.ai-help ol { margin: 8px 0 0; padding-left: 1.4em; }
+.ai-help li + li { margin-top: 4px; }
+.ai-help a { color: var(--accent-ink); }
+.ai-help p { margin: 10px 0 0; font-size: 12px; color: var(--fg-dim); }
+.ai-models { margin-top: 12px; }
+
 /* スレの見た目 (見本は選択肢の上に貼り付けて、選ぶたびに変わるのを見られるようにする) */
 #look-card { overflow: visible; }
 .look-preview {
@@ -2284,8 +2570,8 @@ html[data-view="settings"] body { background: var(--surface); }
   #view-settings {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas: "head head" "world matome" "about matome";
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas: "head head" "world matome" "ai matome" "about matome";
     align-items: start;
     max-width: 1320px;
     margin: 0 auto;
@@ -2296,6 +2582,7 @@ html[data-view="settings"] body { background: var(--surface); }
   .s-body { display: contents; }
   .s-group { padding: 0 16px; }
   #s-world { grid-area: world; }
+  #s-ai { grid-area: ai; }
   #s-matome { grid-area: matome; }
   #s-about { grid-area: about; }
   .art-compact { display: none; }

@@ -293,6 +293,47 @@
       </div>
     </section>
 
+    <!-- ワールドの記事の「AIに質問」(動きは ask.js)。キーはこの端末の中にだけ保存する -->
+    <section id="s-ai" class="s-group" aria-labelledby="s-ai-h">
+      <h2 id="s-ai-h" class="s-label">AIに質問</h2>
+      <div class="s-card s-pad">
+        <h3 class="s-title">Claude の APIキー</h3>
+        <p class="s-note">ワールドの記事で、AI（Claude）に質問するときに使います。キーはこの端末の中にだけ保存し、Anthropic（Claude を作っている会社）にだけ送ります。</p>
+        <p id="ai-key-state" class="ai-state">まだ入っていません</p>
+        <form id="ai-key-form" class="ai-key-form" autocomplete="off">
+          <input id="ai-key" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="sk-ant- で始まるキーを貼り付け" aria-label="Claude の APIキー">
+          <button type="submit" class="ai-save">保存</button>
+        </form>
+        <p id="ai-key-msg" class="ai-msg" role="status" aria-live="polite"></p>
+        <button type="button" id="ai-key-del" class="ai-del" hidden>この端末からキーを消す</button>
+        <details class="ai-help">
+          <summary>APIキーの作り方</summary>
+          <ol>
+            <li><a href="https://platform.claude.com/" target="_blank" rel="noopener noreferrer">Claude Console</a> を開いて、ログイン（はじめてなら登録）します。</li>
+            <li>「Billing」で、クレジット（前払いの料金）を入れます。</li>
+            <li>「Limits」で、1か月に使える金額の上限を決めておくと安心です。</li>
+            <li>「API keys」の「Create Key」で、このアプリ専用のキーを新しく作ります。</li>
+            <li>表示されたキー（sk-ant- で始まる長い文字）をコピーして、上の欄に貼り付け、「保存」を押します。</li>
+          </ol>
+          <p>キーはパスワードと同じです。人に見せたり、チャットやメールに貼ったりしないでください。もれたかもしれないときは、Claude Console でそのキーを消して、作り直してください。</p>
+        </details>
+      </div>
+      <div class="s-card s-pad">
+        <h3 id="ai-model-h" class="s-title">AIの種類</h3>
+        <p class="s-note">料金は質問1回のおよその目安です（1ドル=150円で計算）。「ウェブでも調べる」を使うと、くわしい は1回 約10〜30円、速くて安い は約2〜5円になります</p>
+        <div class="seg ai-models" role="radiogroup" aria-labelledby="ai-model-h">
+          <label><input type="radio" name="ai-model" value="opus"><span>くわしい<small>Opus 5.5・約3〜8円</small></span></label>
+          <label><input type="radio" name="ai-model" value="haiku"><span>速くて安い<small>Haiku 5.5・約0.2円</small></span></label>
+        </div>
+      </div>
+      <div class="s-card">
+        <div class="s-row s-info"><span class="s-text"><b>今月の料金の目安</b><small>この端末から質問した分</small></span><span id="ai-spend" class="s-val">0円</span></div>
+        <button type="button" id="ai-clear" class="s-row s-danger">
+          <span class="s-text"><b>質問の履歴を消す</b><small id="ai-clear-note">すべての記事の、AIへの質問と答えを消します</small></span>
+        </button>
+      </div>
+    </section>
+
     <section id="s-matome" class="s-group" aria-labelledby="s-matome-h">
       <h2 id="s-matome-h" class="s-label">まとめ</h2>
       <div class="s-card">
@@ -441,5 +482,6 @@
 <script src="./weather.js"></script>
 <script src="./radar.js"></script>
 <script src="./tenants.js"></script>
+<script src="./ask.js"></script>
 </body>
 </html>
