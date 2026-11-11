@@ -1,12 +1,13 @@
 {
   "name": "warota-antenna",
-  "version": "2.16.0",
+  "version": "2.17.0",
   "private": true,
   "description": "世界の話題ニュースと5ちゃんねるまとめを集める自分用ニュースアプリ (PWA)",
   "type": "module",
   "scripts": {
     "fetch": "node scripts/fetch.mjs",
     "fetch:world": "node scripts/fetch-world.mjs",
+    "fetch:reuse": "node scripts/fetch-reuse.mjs",
     "serve": "npx --yes serve public",
     "test": "node --test scripts/*.test.mjs"
   }

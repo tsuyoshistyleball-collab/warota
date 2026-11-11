@@ -1,4 +1,4 @@
-const CACHE = "warota-v25";
+const CACHE = "warota-v26";
 const SHELL = [
   "./",
   "./index.html",
@@ -10,13 +10,14 @@ const SHELL = [
   "./radar.js",
   "./tenants.js",
   "./ask.js",
+  "./reuse.js",
   "./world-map.json",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
   "./apple-touch-icon.png",
 ];
-const DATA_FILES = ["data.json", "world.json"];
+const DATA_FILES = ["data.json", "world.json", "reuse.json"];
 // 雨雲レーダーの地図の画像 (地理院タイル)。一度読んだものはここに残して、次からすぐに出す (版を上げても消さない)
 const TILES = "warota-tiles";
 const TILE_HOST = "https://cyberjapandata.gsi.go.jp";

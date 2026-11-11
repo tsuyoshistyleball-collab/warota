@@ -41,6 +41,10 @@ jobs:
       - name: Fetch world news
         run: node scripts/fetch-world.mjs
         continue-on-error: true
+      # リユース業界のニュース。失敗しても、ほかの更新は止めない (全部失敗したときは前回の分を使う)
+      - name: Fetch reuse industry news
+        run: node scripts/fetch-reuse.mjs
+        continue-on-error: true
       - name: Install extractor deps
         run: npm install --no-save --no-package-lock --no-audit --no-fund linkedom @mozilla/readability @anthropic-ai/sdk
       # 世界ニュースの話題ごとに各社の記事を読んで要約する。リポジトリの Secrets に ANTHROPIC_API_KEY があれば

@@ -1,0 +1,22 @@
+{
+  "note": "リユース業界のニュースを集めるキーワード (Google ニュースの検索)。上の分類ほど優先して付ける。must があれば、見出しがその言葉をふくむ記事だけを残す",
+  "categories": [
+    { "id": "paper", "name": "業界紙", "queries": ["site:recycle-tsushin.com"] },
+    {
+      "id": "company",
+      "name": "企業",
+      "queries": [
+        "ブックオフ OR ゲオホールディングス OR セカンドストリート OR トレジャーファクトリー OR ハードオフ OR アップガレージ",
+        "コメ兵 OR バリュエンス OR 大黒屋 OR 買取大吉 OR おたからや OR エコリング OR 買取王国"
+      ]
+    },
+    { "id": "market", "name": "フリマ・EC", "queries": ["メルカリ OR ヤフオク OR \"Yahoo!フリマ\" OR ラクマ OR ジモティー"] },
+    {
+      "id": "law",
+      "name": "買取・法律",
+      "queries": ["古物商", "古物営業法 OR 訪問購入 OR 押し買い OR 金属盗対策法"],
+      "must": "古物|訪問購入|押し買い|盗品|金属盗"
+    },
+    { "id": "industry", "name": "業界の動き", "queries": ["リユース", "中古市場 OR 二次流通 OR リコマース OR リユース市場"] }
+  ]
+}

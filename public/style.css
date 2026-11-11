@@ -694,6 +694,12 @@ body.noscroll { overflow: hidden; }
   stroke-linejoin: round;
 }
 #tabbar a[aria-current] { color: var(--fg); }
+/* タブが6つあるので、狭い画面ではすき間と丸を詰める */
+@media (max-width: 479.98px) {
+  #tabbar { gap: 2px; padding-left: 6px; padding-right: 6px; }
+  #tabbar a { min-width: 0; font-size: 10.5px; white-space: nowrap; }
+  .tab-ic { width: min(58px, 100%); }
+}
 #tabbar a[aria-current] .tab-ic { color: var(--accent-ink); }
 
 /* スワイプや切り替えのアニメーションで画面を横にずらしても、ページの幅が広がらないようにする
@@ -2150,6 +2156,62 @@ html[data-view="tenants"] body { background: var(--surface); }
   #view-tenants { max-width: 1100px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
   .tn-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; }
 }
+
+/* ===== リユース業界ニュース (reuse.js) ===== */
+html[data-view="reuse"] body { background: var(--surface); }
+#view-reuse { padding: 0 12px calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom)); }
+.ru-head { padding: calc(14px + env(safe-area-inset-top)) 6px 12px; }
+.ru-eyebrow { margin: 0; font-size: 12px; font-weight: 700; color: var(--fg-dim); }
+#ru-title { margin: 2px 0 0; font-size: 23px; font-weight: 800; line-height: 1.25; }
+.ru-sub { margin: 3px 0 0; min-height: 1.5em; font-size: 12.5px; color: var(--fg-dim); }
+.ru-chips { display: flex; gap: 7px; margin: 0 -12px; padding: 2px 12px 4px; overflow-x: auto; scrollbar-width: none; }
+.ru-chips::-webkit-scrollbar { display: none; }
+.ru-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ru-chip small { font-size: 11px; font-weight: 700; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+.ru-chip[aria-pressed="true"] { background: var(--fg); box-shadow: none; color: #fff; }
+.ru-chip[aria-pressed="true"] small { color: rgba(255, 255, 255, .7); }
+.ru-chip:focus-visible, .ru-list a:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.ru-day h2 { margin: 18px 6px 8px; font-size: 14px; font-weight: 800; color: var(--ink-2); }
+.ru-day h2 small { margin-left: 4px; font-size: 12px; font-weight: 600; color: var(--fg-dim); }
+.ru-list { margin: 0; padding: 0; list-style: none; border-radius: 20px; background: var(--card); box-shadow: var(--shadow-sm); overflow: hidden; }
+.ru-list li + li { border-top: 1px solid var(--line); }
+.ru-list a { display: block; padding: 13px 16px 12px; color: inherit; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.ru-list a:active { background: var(--surface); }
+.ru-list a:visited .ru-title { color: var(--read); }
+.ru-title { display: block; font-size: 15.5px; font-weight: 700; line-height: 1.55; overflow-wrap: anywhere; }
+.ru-new { margin-right: 6px; padding: 1px 6px; border-radius: 6px; background: var(--heat-4); color: #fff; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; vertical-align: 2px; }
+.ru-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 5px; font-size: 11.5px; color: var(--fg-dim); }
+.ru-src { font-weight: 800; color: var(--ink-2); }
+.ru-cat { padding: 1px 7px; border-radius: 999px; background: var(--surface); font-weight: 700; color: var(--ink-2); }
+.ru-cat.c-paper { background: #fff1e2; color: var(--accent-ink); }
+.ru-empty { margin: 28px 12px; text-align: center; font-size: 14px; line-height: 1.8; color: var(--fg-dim); }
+.ru-credit { margin: 18px 6px 0; font-size: 11px; line-height: 1.6; color: var(--fg-dim); }
+@media (min-width: 600px) {
+  #view-reuse { max-width: 1100px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+  .ru-chips { margin: 0; padding-left: 0; padding-right: 0; flex-wrap: wrap; }
+  .ru-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ru-list li + li { border-top: 0; }
+  .ru-list li { border-bottom: 1px solid var(--line); }
+  .ru-list li:nth-child(odd) { border-right: 1px solid var(--line); }
+}
+@media (hover: hover) { .ru-list a:hover .ru-title { text-decoration: underline; } }
 
 /* ===== 雨雲レーダー (全画面。radar.js) =====
    地図の上に、左上に時刻、右上に拡大・縮小、下に再生と時刻のつまみ・雨の強さの色 */
