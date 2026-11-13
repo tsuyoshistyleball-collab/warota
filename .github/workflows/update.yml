@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry.outputs.page_url }}
     env:
       # 前回デプロイした分 (記事本文・世界ニュースの蓄積) を取りに行く公開URL
       PAGES_BASE: https://tsuyoshistyleball-collab.github.io/warota
@@ -72,7 +72,16 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public
+      # まれに、上げたばかりの成果物が GitHub 側でまだ見つからず失敗する (2026-11-13 に2回)。
+      # 1回目が失敗したら、少し待ってもう一度だけ公開する
       - id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+      - name: Wait before retrying deploy
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 30
+      - id: deployment_retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v4
 
   # 公開リポジトリは60日間コミットがないと GitHub が定期実行を自動停止するため
